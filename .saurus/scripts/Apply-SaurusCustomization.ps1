@@ -155,12 +155,14 @@ Replace-RegexRequired $configPath `
     '(?m)^pub const RENDEZVOUS_SERVERS: &\[&str\] = &\[[^\r\n]*\];' `
     ('pub const RENDEZVOUS_SERVERS: &[&str] = &["' + $serverEscaped + '"];') `
     "Servidor rendezvous padrão"
-$prodServerReplacement = 'pub static ref PROD_RENDEZVOUS_SERVER: RwLock<String> = RwLock::new("' + $serverEscaped + '".to_owned());'
-Replace-RegexRequired $configPath `
-    '(?m)^pub static ref PROD_RENDEZVOUS_SERVER: RwLock<String> = RwLock::new\("[^"\r\n]*"\.to_owned\(\)\);' `
+# A constante fica indentada dentro de lazy_static! no hbb_common usado pelo RustDesk 1.4.9.
+# Use substituicao literal para preservar o escopo do bloco Rust e evitar falso negativo no patch.
+$prodServerOriginal = '    pub static ref PROD_RENDEZVOUS_SERVER: RwLock<String> = RwLock::new("".to_owned());'
+$prodServerReplacement = '    pub static ref PROD_RENDEZVOUS_SERVER: RwLock<String> = RwLock::new("' + $serverEscaped + '".to_owned());'
+Replace-LiteralRequired $configPath `
+    $prodServerOriginal `
     $prodServerReplacement `
-    "Servidor de producao padrao" `
-    $prodServerReplacement
+    "Servidor de producao padrao"
 Replace-RegexRequired $configPath `
     '(?m)^pub const RS_PUB_KEY: &str = "[^"\r\n]*";' `
     ('pub const RS_PUB_KEY: &str = "' + $keyEscaped + '";') `
