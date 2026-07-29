@@ -230,7 +230,7 @@ Replace-RegexRequired $coreMainPath `
     "SAURUS_REMOTE_WINDOW_DISPATCH"
 
 $displayNameCpp = $DisplayName.Replace('\', '\\').Replace('"', '\"')
-$cppInsertion = "  // SAURUS_REMOTE_DISPLAY_NAME`r`n  app_name = L`\"$displayNameCpp`\";`r`n"
+$cppInsertion = "  // SAURUS_REMOTE_DISPLAY_NAME`r`n  app_name = L`"$displayNameCpp`";`r`n"
 Insert-BeforeMarkerRequired $windowsMainPath `
     "  // Uri links dispatch" `
     $cppInsertion `
