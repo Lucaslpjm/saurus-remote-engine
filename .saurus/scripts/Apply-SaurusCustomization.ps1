@@ -216,11 +216,12 @@ Replace-RegexRequired $flutterFfiPath `
     $ffiVisualNameSync
 
 $pubspecDescription = 'description: Saurus Remote - acesso remoto corporativo da Saurus Software'
-Replace-RegexRequired $pubspecPath `
-    '(?m)^description:[^\r\n]*$' `
+# A tag 1.4.9 possui exatamente esta descricao. A troca literal independe de LF/CRLF
+# e evita o falso negativo do regex ancorado com `$` em checkout Windows.
+Replace-LiteralRequired $pubspecPath `
+    'description: Your Remote Desktop Software' `
     $pubspecDescription `
-    "Descricao do aplicativo Flutter" `
-    $pubspecDescription
+    "Descricao do aplicativo Flutter"
 
 # Mantém o título visual e o encaminhamento para a instância existente consistentes.
 $dispatchPattern = '(&crate::platform::FLUTTER_RUNNER_WIN32_WINDOW_CLASS,\s*)\&crate::get_app_name\(\),'
