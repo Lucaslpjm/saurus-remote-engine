@@ -18,7 +18,7 @@ Correção: usar somente `SaurusRemote`, validar o caminho registrado no serviç
 
 Uma única senha é constante, aplicada a todas as máquinas, exibida na tela e copiada para o clipboard. Quem obtiver o binário ou a senha de uma estação pode tentar utilizá-la em outras.
 
-Decisão operacional atual: manter `ophd0202` em todas as instalações. O novo motor aplica essa senha automaticamente, rejeita valores diferentes e mantém o provisionamento de reparo via stdin para não expô-la no CommandLine.
+Correção: senha individual, aleatória, rotacionável, protegida por DPAPI e enviada por stdin; ou acesso interativo/temporário.
 
 ### 3. Download sem validação de integridade
 

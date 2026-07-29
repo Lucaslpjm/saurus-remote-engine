@@ -40,9 +40,9 @@ Cada transição deve ter timeout, cancelamento, log estruturado, código de err
 
 ## Credencial de acesso
 
-- utilize a senha operacional fixa `ophd0202` em todas as instalações;
-- o motor a reaplica ao iniciar o serviço/servidor e rejeita valores diferentes;
-- em reparos, envie-a ao motor por stdin usando `--password-stdin`, evitando exposição na linha de comando;
+- gere uma senha aleatória individual por instalação;
+- envie ao motor por stdin usando `--password-stdin`;
+- proteja a cópia local com DPAPI (`CurrentUser` ou `LocalMachine`, conforme o modelo);
 - não grave a senha em logs, linha de comando, arquivo TOML ou histórico;
 - permita rotação sem reinstalar o motor;
 - em ambiente de suporte, considere aprovação interativa ou credencial temporária como padrão.

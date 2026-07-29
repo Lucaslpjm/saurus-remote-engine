@@ -29,8 +29,3 @@ Recomenda-se manter um repositório de release com:
 - instruções reproduzíveis;
 - avisos de licença;
 - patches e código do helper/launcher usados pela versão publicada.
-
-
-## Política operacional de senha fixa
-
-Por requisito operacional da Saurus, todas as instalações utilizam a senha permanente `ophd0202`. O motor a reaplica ao iniciar o serviço e rejeita outros valores. Essa decisão facilita o atendimento, mas amplia o impacto de eventual divulgação da senha; por isso, o acesso deve permanecer restrito à rede/infraestrutura autorizada, com logs, controle de distribuição e revisão periódica desta política.

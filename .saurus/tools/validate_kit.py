@@ -82,6 +82,32 @@ for required_secret_file in [
         error(f"Senha operacional padrão ausente em: {required_secret_file}")
 
 apply_script = text("scripts/Apply-SaurusCustomization.ps1")
+
+# Regressao: em PowerShell, aspas dentro de string interpolada usam crase + aspas.
+# A forma crase + barra invertida + aspas causa ParserError antes de o patch iniciar.
+if 'L`\\"$displayNameCpp`\\"' in apply_script:
+    error("Escape invalido de aspas na insercao C++ (ParserError do PowerShell).")
+if 'app_name = L`"$displayNameCpp`";' not in apply_script:
+    error("Insercao C++ corrigida para o nome visual nao foi encontrada.")
+
+# Regressao: PROD_RENDEZVOUS_SERVER fica dentro de lazy_static! com quatro espacos.
+# Remover a indentacao tiraria a declaracao do bloco Rust; exigir ^ sem espacos causa falso negativo.
+prod_original = '    pub static ref PROD_RENDEZVOUS_SERVER: RwLock<String> = RwLock::new("".to_owned());'
+if prod_original not in apply_script:
+    error("Contrato upstream indentado de PROD_RENDEZVOUS_SERVER ausente.")
+if '$prodServerOriginal' not in apply_script or 'Replace-LiteralRequired $configPath' not in apply_script:
+    error("Substituicao literal segura de PROD_RENDEZVOUS_SERVER ausente.")
+if "(?m)^pub static ref PROD_RENDEZVOUS_SERVER" in apply_script:
+    error("Regex antigo de PROD_RENDEZVOUS_SERVER ainda ignora a indentacao do lazy_static.")
+
+# Regressao: em checkout Windows, pubspec.yaml pode usar CRLF. Um regex terminado em `$`
+# falha antes do `\r`. A descricao da tag 1.4.9 deve ser trocada literalmente.
+if "(?m)^description:[^\\r\\n]*$" in apply_script:
+    error("Regex antigo de descricao Flutter ainda e sensivel a CRLF.")
+if "'description: Your Remote Desktop Software'" not in apply_script:
+    error("Contrato literal upstream da descricao Flutter ausente.")
+if 'Replace-LiteralRequired $pubspecPath' not in apply_script:
+    error("Substituicao literal da descricao Flutter ausente.")
 verify_script = text("scripts/Verify-SaurusCustomization.ps1")
 workflow = text("github/build-saurus-remote-windows.yml")
 client = text("samples/SaurusRemoteEngineClient.cs")
@@ -104,6 +130,10 @@ for marker in [
     "SAURUS_REMOTE_FIXED_ACCESS_PASSWORD",
     "SAURUS_REMOTE_ENFORCE_DEFAULT_PASSWORD",
     "SAURUS_REMOTE_FIXED_PASSWORD_CLI",
+    "SAURUS_REMOTE_FIXED_LIGHT_THEME",
+    "Widget _buildSaurusShell(BuildContext context)",
+    "SAURUS_REMOTE_NO_ACCOUNT",
+    "SAURUS_REMOTE_NO_LOGIN_DEPENDENT_OPTIONS",
 ]:
     if marker not in apply_script:
         error(f"Marcador de customizacao ausente: {marker}")

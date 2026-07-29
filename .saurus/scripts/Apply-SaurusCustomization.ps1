@@ -141,6 +141,8 @@ $runnerRcPath = Resolve-SourceFile "flutter\windows\runner\Runner.rc"
 $commonDartPath = Resolve-SourceFile "flutter\lib\common.dart"
 $remoteToolbarPath = Resolve-SourceFile "flutter\lib\desktop\widgets\remote_toolbar.dart"
 $pubspecPath = Resolve-SourceFile "flutter\pubspec.yaml"
+$desktopHomePath = Resolve-SourceFile "flutter\lib\desktop\pages\desktop_home_page.dart"
+$desktopSettingsPath = Resolve-SourceFile "flutter\lib\desktop\pages\desktop_setting_page.dart"
 
 # 1. Identidade interna: separa serviço, IPC, executável e configurações do RustDesk original.
 Replace-LiteralRequired $configPath `
@@ -451,21 +453,617 @@ Replace-LiteralRequired $privacyTopmostPath `
     '"SaurusRemotePrivacyWindow"' `
     "Nome da janela de privacidade isolado"
 
-# 7. Tema visual usado tanto na tela principal quanto durante a sessão remota.
+# 7. Tema visual claro baseado no design system da Saurus.
 $themeReplacements = @(
-    @('static const Color accent = Color(0xFF0071FF);', 'static const Color accent = Color(0xFFE3CF66);'),
-    @('static const Color accent50 = Color(0x770071FF);', 'static const Color accent50 = Color(0x77E3CF66);'),
-    @('static const Color accent80 = Color(0xAA0071FF);', 'static const Color accent80 = Color(0xAAE3CF66);'),
-    @('static const Color canvasColor = Color(0xFF212121);', 'static const Color canvasColor = Color(0xFF202030);'),
-    @('static const Color idColor = Color(0xFF00B6F0);', 'static const Color idColor = Color(0xFFE3CF66);'),
-    @('static const Color button = Color(0xFF2C8CFF);', 'static const Color button = Color(0xFFE3CF66);'),
-    @('Color(0xFF18191E)', 'Color(0xFF202030)'),
-    @('Color(0xFF24252B)', 'Color(0xFF0F2D50)'),
-    @('Color.fromARGB(255, 45, 46, 53)', 'Color.fromARGB(255, 32, 32, 48)')
+    @('static const Color accent = Color(0xFF0071FF);', 'static const Color accent = Color(0xFFD5B63A);'),
+    @('static const Color accent50 = Color(0x770071FF);', 'static const Color accent50 = Color(0x77D5B63A);'),
+    @('static const Color accent80 = Color(0xAA0071FF);', 'static const Color accent80 = Color(0xAAD5B63A);'),
+    @('static const Color canvasColor = Color(0xFF212121);', 'static const Color canvasColor = Color(0xFFF5F6F8);'),
+    @('static const Color idColor = Color(0xFF00B6F0);', 'static const Color idColor = Color(0xFF111C35);'),
+    @('static const Color button = Color(0xFF2C8CFF);', 'static const Color button = Color(0xFF111C35);'),
+    @('Color(0xFF18191E)', 'Color(0xFFF5F6F8)'),
+    @('Color(0xFF24252B)', 'Color(0xFFFFFFFF)'),
+    @('Color.fromARGB(255, 45, 46, 53)', 'Color.fromARGB(255, 245, 246, 248)')
 )
 foreach ($pair in $themeReplacements) {
-    Replace-LiteralRequired $commonDartPath $pair[0] $pair[1] ("Tema Saurus: {0}" -f $pair[0])
+    Replace-LiteralRequired $commonDartPath $pair[0] $pair[1] ("Tema claro Saurus: {0}" -f $pair[0])
 }
+
+$lightThemePreference = @'
+  static ThemeMode getThemeModePreference() {
+    // SAURUS_REMOTE_FIXED_LIGHT_THEME
+    return ThemeMode.light;
+  }
+'@
+Replace-RegexRequired $commonDartPath `
+    '  static ThemeMode getThemeModePreference\(\) \{\s*return themeModeFromString\(bind\.mainGetLocalOption\(key: kCommConfKeyTheme\)\);\s*\}' `
+    $lightThemePreference `
+    "Tema claro fixo" `
+    "SAURUS_REMOTE_FIXED_LIGHT_THEME"
+
+# Remove a escolha de tema e a área de conta/login das configurações.
+Replace-LiteralRequired $desktopSettingsPath `
+    '        theme(),' `
+    '        // SAURUS_REMOTE_LIGHT_THEME_ONLY: tema definido pela identidade visual corporativa.' `
+    "Seletor de tema removido"
+Replace-LiteralRequired $desktopSettingsPath `
+    '    if (!bind.isDisableAccount()) SettingsTabKey.account,' `
+    '    // SAURUS_REMOTE_NO_ACCOUNT: login e conta ocultos nesta fase.' `
+    "Aba de conta removida"
+
+$accountDependentOptionPattern = '    if \(!bind\.isDisableAccount\(\)\) \{\s*children\.add\(_OptionCheckBox\(\s*context,\s*''note-at-conn-end-tip'',\s*kOptionAllowAskForNoteAtEndOfConnection,\s*isServer: false,\s*optSetter: \(key, value\) async \{\s*if \(value && !gFFI\.userModel\.isLogin\) \{\s*final res = await loginDialog\(\);\s*if \(res != true\) return;\s*\}\s*await mainSetLocalBoolOption\(key, value\);\s*\},\s*\)\);\s*\}'
+Replace-RegexRequired $desktopSettingsPath `
+    $accountDependentOptionPattern `
+    '    // SAURUS_REMOTE_NO_LOGIN_DEPENDENT_OPTIONS' `
+    "Opções dependentes de login removidas" `
+    "SAURUS_REMOTE_NO_LOGIN_DEPENDENT_OPTIONS"
+
+# 8. Tela principal Saurus: sem perfil, login, logout ou mapa.
+$saurusHomeBuild = @'
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    return _buildBlock(child: _buildSaurusShell(context));
+  }
+'@
+Replace-RegexRequired $desktopHomePath `
+    '  @override\s+Widget build\(BuildContext context\) \{\s+super\.build\(context\);\s+final isIncomingOnly = bind\.isIncomingOnly\(\);\s+return _buildBlock\(\s*child: Row\(.*?\)\);\s+\}' `
+    $saurusHomeBuild `
+    "Dashboard principal Saurus" `
+    "_buildSaurusShell(context)"
+
+$saurusHomeWidgets = @'
+  static const Color _saurusNavy = Color(0xFF111C35);
+  static const Color _saurusGold = Color(0xFFD5B63A);
+  static const Color _saurusPage = Color(0xFFF5F6F8);
+  static const Color _saurusCard = Color(0xFFFFFFFF);
+  static const Color _saurusBorder = Color(0xFFE1E4E8);
+  static const Color _saurusText = Color(0xFF172033);
+  static const Color _saurusMuted = Color(0xFF6B7280);
+  static const Color _saurusSuccess = Color(0xFF2FBF64);
+
+  Widget _buildSaurusShell(BuildContext context) {
+    return Container(
+      color: _saurusPage,
+      child: Row(
+        children: [
+          _buildSaurusSidebar(context),
+          Expanded(
+            child: Column(
+              children: [
+                _buildSaurusHeader(context),
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.all(18),
+                    child: LayoutBuilder(
+                      builder: (context, constraints) {
+                        final compact = constraints.maxWidth < 900;
+                        final deviceColumn = Column(
+                          children: [
+                            _buildSaurusDeviceCard(context),
+                            const SizedBox(height: 14),
+                            _buildSaurusDiagnosticsCard(context),
+                          ],
+                        );
+                        final connections = _buildSaurusConnectionsCard(context);
+                        if (compact) {
+                          return ListView(
+                            children: [
+                              deviceColumn,
+                              const SizedBox(height: 14),
+                              SizedBox(height: 520, child: connections),
+                            ],
+                          );
+                        }
+                        return Row(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            SizedBox(
+                              width: 340,
+                              child: SingleChildScrollView(child: deviceColumn),
+                            ),
+                            const SizedBox(width: 14),
+                            Expanded(child: connections),
+                          ],
+                        );
+                      },
+                    ),
+                  ),
+                ),
+                _buildSaurusFooter(context),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSaurusSidebar(BuildContext context) {
+    return Container(
+      width: 210,
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        border: Border(right: BorderSide(color: _saurusBorder)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 24, 16, 24),
+            child: Row(
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFF9DF),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: _saurusGold.withOpacity(0.45)),
+                  ),
+                  child: Image.asset(
+                    'assets/saurus_remote_logo.png',
+                    fit: BoxFit.contain,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                const Expanded(
+                  child: Text(
+                    'Saurus Remote',
+                    style: TextStyle(
+                      color: _saurusNavy,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 17,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          _buildSaurusNavItem(
+            icon: Icons.dashboard_outlined,
+            label: 'Dashboard',
+            selected: true,
+            onTap: () {},
+          ),
+          _buildSaurusNavItem(
+            icon: Icons.monitor_heart_outlined,
+            label: 'Diagnóstico',
+            onTap: () => DesktopSettingPage.switch2page(SettingsTabKey.network),
+          ),
+          _buildSaurusNavItem(
+            icon: Icons.settings_outlined,
+            label: 'Configurações',
+            onTap: DesktopTabPage.onAddSetting,
+          ),
+          const Spacer(),
+          const Padding(
+            padding: EdgeInsets.fromLTRB(20, 12, 20, 20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Motor RustDesk 1.4.9',
+                  style: TextStyle(color: _saurusMuted, fontSize: 11),
+                ),
+                SizedBox(height: 5),
+                Row(
+                  children: [
+                    Icon(Icons.circle, color: _saurusSuccess, size: 8),
+                    SizedBox(width: 6),
+                    Text(
+                      'Saurus build',
+                      style: TextStyle(color: _saurusMuted, fontSize: 11),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSaurusNavItem({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+    bool selected = false,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+      child: Material(
+        color: selected ? _saurusNavy : Colors.transparent,
+        borderRadius: BorderRadius.circular(7),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(7),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+            child: Row(
+              children: [
+                Icon(icon,
+                    color: selected ? _saurusGold : _saurusMuted, size: 21),
+                const SizedBox(width: 12),
+                Text(
+                  label,
+                  style: TextStyle(
+                    color: selected ? _saurusGold : _saurusText,
+                    fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+                    fontSize: 14,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSaurusHeader(BuildContext context) {
+    return Container(
+      height: 72,
+      padding: const EdgeInsets.symmetric(horizontal: 24),
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        border: Border(bottom: BorderSide(color: _saurusBorder)),
+      ),
+      child: Row(
+        children: [
+          const Expanded(
+            child: Text(
+              'Saurus Remote',
+              style: TextStyle(
+                color: _saurusText,
+                fontSize: 24,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+          Obx(
+            () => Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+              decoration: BoxDecoration(
+                color: svcStopped.value
+                    ? const Color(0xFFFFF1F1)
+                    : const Color(0xFFF0FBF4),
+                borderRadius: BorderRadius.circular(18),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.circle,
+                      size: 8,
+                      color: svcStopped.value
+                          ? const Color(0xFFE25555)
+                          : _saurusSuccess),
+                  const SizedBox(width: 7),
+                  Text(
+                    svcStopped.value
+                        ? 'Serviço interrompido'
+                        : 'Serviço em execução',
+                    style: const TextStyle(
+                      color: _saurusText,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          IconButton(
+            tooltip: translate('Settings'),
+            onPressed: DesktopTabPage.onAddSetting,
+            icon: const Icon(Icons.settings_outlined, color: _saurusNavy),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSaurusDeviceCard(BuildContext context) {
+    return ChangeNotifierProvider.value(
+      value: gFFI.serverModel,
+      child: Consumer<ServerModel>(
+        builder: (context, model, child) {
+          final rawId = model.serverId.text.trim();
+          final connected = rawId.isNotEmpty && rawId != '-';
+          return _buildSaurusCard(
+            title: 'Este dispositivo',
+            icon: Icons.desktop_windows_outlined,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _buildSaurusValueRow(
+                  label: 'ID do dispositivo',
+                  value: _formatSaurusId(rawId),
+                  buttonLabel: 'Copiar ID',
+                  onCopy: connected ? rawId : '',
+                ),
+                const Divider(height: 26),
+                _buildSaurusValueRow(
+                  label: 'Senha permanente',
+                  value: 'ophd0202',
+                  buttonLabel: 'Copiar senha',
+                  onCopy: 'ophd0202',
+                ),
+                const Divider(height: 26),
+                _buildSaurusStatusLine(
+                  'Status do serviço',
+                  svcStopped.value ? 'Interrompido' : 'Online',
+                  !svcStopped.value,
+                ),
+                const SizedBox(height: 9),
+                _buildSaurusStatusLine(
+                  'Status do servidor',
+                  connected ? 'Conectado' : 'Aguardando ID',
+                  connected,
+                ),
+                const SizedBox(height: 9),
+                _buildSaurusStatusLine(
+                  'Servidor',
+                  '20.195.216.23:443',
+                  true,
+                ),
+                const SizedBox(height: 18),
+                OutlinedButton.icon(
+                  onPressed: () => DesktopSettingPage.switch2page(
+                    SettingsTabKey.network,
+                  ),
+                  icon: const Icon(Icons.tune, size: 18),
+                  label: const Text('Configurações de rede'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: _saurusNavy,
+                    side: const BorderSide(color: _saurusBorder),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildSaurusValueRow({
+    required String label,
+    required String value,
+    required String buttonLabel,
+    required String onCopy,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label,
+            style: const TextStyle(color: _saurusMuted, fontSize: 12)),
+        const SizedBox(height: 6),
+        Row(
+          children: [
+            Expanded(
+              child: SelectableText(
+                value.isEmpty ? 'Carregando...' : value,
+                style: const TextStyle(
+                  color: _saurusText,
+                  fontSize: 23,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.5,
+                ),
+              ),
+            ),
+            TextButton.icon(
+              onPressed: onCopy.isEmpty
+                  ? null
+                  : () {
+                      Clipboard.setData(ClipboardData(text: onCopy));
+                      showToast(translate('Copied'));
+                    },
+              icon: const Icon(Icons.copy_outlined, size: 16),
+              label: Text(buttonLabel),
+              style: TextButton.styleFrom(foregroundColor: _saurusNavy),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSaurusStatusLine(String label, String value, bool success) {
+    return Row(
+      children: [
+        Expanded(
+          child: Text(label,
+              style: const TextStyle(color: _saurusMuted, fontSize: 12)),
+        ),
+        Icon(Icons.circle,
+            size: 8,
+            color: success ? _saurusSuccess : const Color(0xFFE2A33A)),
+        const SizedBox(width: 6),
+        Flexible(
+          child: Text(
+            value,
+            textAlign: TextAlign.right,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: _saurusText,
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSaurusDiagnosticsCard(BuildContext context) {
+    return SizedBox(
+      height: 250,
+      child: _buildSaurusCard(
+        title: 'Diagnóstico rápido',
+        icon: Icons.monitor_heart_outlined,
+        expandChild: true,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            OnlineStatusWidget(
+              onSvcStatusChanged: () {
+                if (mounted) setState(() {});
+              },
+            ),
+            const Spacer(),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF7F9FC),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: _saurusBorder),
+              ),
+              child: const Row(
+                children: [
+                  Icon(Icons.verified_user_outlined,
+                      color: _saurusSuccess, size: 20),
+                  SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'Conexões protegidas por criptografia de ponta a ponta.',
+                      style: TextStyle(
+                        color: _saurusMuted,
+                        fontSize: 12,
+                        height: 1.3,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSaurusConnectionsCard(BuildContext context) {
+    return _buildSaurusCard(
+      title: 'Conectar e acessar sessões recentes',
+      icon: Icons.link_outlined,
+      padding: EdgeInsets.zero,
+      expandChild: true,
+      child: ClipRRect(
+        borderRadius: const BorderRadius.only(
+          bottomLeft: Radius.circular(10),
+          bottomRight: Radius.circular(10),
+        ),
+        child: Container(
+          color: Colors.white,
+          child: ConnectionPage(),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSaurusCard({
+    required String title,
+    required IconData icon,
+    required Widget child,
+    EdgeInsets padding = const EdgeInsets.fromLTRB(18, 16, 18, 18),
+    bool expandChild = false,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        color: _saurusCard,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: _saurusBorder),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x0B000000),
+            blurRadius: 10,
+            offset: Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(18, 16, 18, 13),
+            child: Row(
+              children: [
+                Container(
+                  width: 34,
+                  height: 34,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF1F3F6),
+                    borderRadius: BorderRadius.circular(17),
+                  ),
+                  child: Icon(icon, color: _saurusNavy, size: 19),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    title,
+                    style: const TextStyle(
+                      color: _saurusText,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const Divider(height: 1),
+          if (expandChild)
+            Expanded(child: Padding(padding: padding, child: child))
+          else
+            Padding(padding: padding, child: child),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSaurusFooter(BuildContext context) {
+    return Container(
+      height: 34,
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        border: Border(top: BorderSide(color: _saurusBorder)),
+      ),
+      child: const Row(
+        children: [
+          Text('Saurus Remote',
+              style: TextStyle(color: _saurusMuted, fontSize: 11)),
+          Spacer(),
+          Icon(Icons.shield_outlined, color: _saurusSuccess, size: 15),
+          SizedBox(width: 6),
+          Text('Conexão segura',
+              style: TextStyle(color: _saurusMuted, fontSize: 11)),
+        ],
+      ),
+    );
+  }
+
+  String _formatSaurusId(String raw) {
+    final digits = raw.replaceAll(RegExp(r'\D'), '');
+    if (digits.length < 7) return raw;
+    final chunks = <String>[];
+    for (var i = 0; i < digits.length; i += 3) {
+      final end = (i + 3 < digits.length) ? i + 3 : digits.length;
+      chunks.add(digits.substring(i, end));
+    }
+    return chunks.join(' ');
+  }
+
+'@
+Insert-BeforeMarkerRequired $desktopHomePath `
+    '  Widget _buildBlock({required Widget child}) {' `
+    $saurusHomeWidgets `
+    'Widget _buildSaurusShell(BuildContext context)' `
+    "Componentes do dashboard claro Saurus"
 
 # 8. Marca Saurus visivel na barra da sessao remota.
 $toolbarPattern = '(?m)^(\s*final List<Widget> toolbarItems = \[\];\r?\n)(\s*toolbarItems\.add\(_PinMenu\(state: widget\.state\)\);)'
@@ -490,9 +1088,9 @@ class _SaurusBrand extends StatelessWidget {
           width: 28,
           height: 28,
           decoration: BoxDecoration(
-            color: const Color(0xFF202030),
+            color: const Color(0xFFFFFFFF),
             borderRadius: BorderRadius.circular(6),
-            border: Border.all(color: const Color(0xFFE3CF66), width: 1),
+            border: Border.all(color: const Color(0xFFD5B63A), width: 1),
           ),
           padding: const EdgeInsets.all(3),
           child: Image.asset(
@@ -582,9 +1180,9 @@ $manifest = [ordered]@{
         updaterOwner = "Saurus Remote launcher/updater"
     }
     theme = [ordered]@{
-        background = "#202030"
-        accent = "#E3CF66"
-        card = "#0F2D50"
+        background = "#F5F6F8"
+        accent = "#D5B63A"
+        card = "#FFFFFF"
     }
 }
 $manifestPath = Join-Path $Root "SAURUS_CUSTOMIZATION.json"

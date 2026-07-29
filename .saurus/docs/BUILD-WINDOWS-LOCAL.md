@@ -16,7 +16,7 @@ Para assinar com certificado instalado no Windows:
 ```powershell
 .\scripts\Build-SaurusRemote.ps1 `
   -SourceRoot C:\Projetos\rustdesk-saurus `
-  -BuildLabel saurus.2 `
+  -BuildLabel saurus.1 `
   -SigningCertificateThumbprint 'THUMBPRINT_SEM_ESPACOS'
 ```
 

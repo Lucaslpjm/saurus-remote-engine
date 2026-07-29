@@ -43,7 +43,7 @@ O helper deve aceitar apenas comandos conhecidos (`install`, `repair`, `update`,
 
 ## Senha
 
-O exemplo `samples/SaurusRemoteEngineClient.cs` expõe `DefaultAccessPassword` e `EnsureDefaultAccessPasswordAsync`. O motor aplica automaticamente a senha operacional `ophd0202` no serviço e no servidor e rejeita valores diferentes. O launcher pode reaplicá-la pelo `stdin` durante reparos, sem expô-la nos argumentos do processo.
+O exemplo `samples/SaurusRemoteEngineClient.cs` mostra como escrever a senha no stdin do motor. Quando o launcher não estiver elevado, delegue essa operação ao helper. A senha deve ser gerada por CSPRNG e guardada com DPAPI.
 
 ## Sessão
 
