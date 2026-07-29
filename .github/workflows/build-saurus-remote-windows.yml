@@ -6,7 +6,7 @@ on:
       build_label:
         description: "Identificador da compilacao Saurus"
         required: true
-        default: "saurus.3.0.1"
+        default: "saurus.3.1.2"
         type: string
       include_remote_printer:
         description: "Incluir driver de impressao remota upstream (desativado por padrao para maximizar coexistencia)"
@@ -17,6 +17,10 @@ on:
 permissions:
   contents: read
 
+# Avoid spending runner minutes on an obsolete manual build of the same label.
+concurrency:
+  group: saurus-remote-windows-x64-${{ github.ref }}-${{ inputs.build_label }}
+  cancel-in-progress: true
 env:
   RUST_VERSION: "1.75"
   LLVM_VERSION: "15.0.6"
@@ -57,7 +61,7 @@ jobs:
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
         with:
           submodules: recursive
-          fetch-depth: 0
+          fetch-depth: 1
 
       - name: Validate build label
         shell: pwsh
@@ -87,10 +91,24 @@ jobs:
           & .\.saurus\scripts\Apply-SaurusCustomization.ps1 -SourceRoot $PWD
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
+      - name: Apply Saurus UX refresh
+        shell: pwsh
+        run: |
+          python .\.saurus\tests\test_ux_refresh.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python .\.saurus\tools\apply_saurus_ux_refresh.py --source-root .
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
       - name: Verify Saurus customization and secret policy
         shell: pwsh
         run: |
           & .\.saurus\scripts\Verify-SaurusCustomization.ps1 -SourceRoot $PWD
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Verify Saurus UX refresh
+        shell: pwsh
+        run: |
+          python .\.saurus\tools\verify_saurus_ux_refresh.py --source-root .
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Restore generated Flutter-Rust bridge
@@ -110,13 +128,14 @@ jobs:
           channel: stable
           flutter-version: ${{ env.FLUTTER_VERSION }}
           architecture: x64
+          pub-cache: true
 
       - name: Install RustDesk custom Flutter engine
         shell: pwsh
         env:
           EXPECTED_ENGINE_SHA256: ${{ secrets.SAURUS_FLUTTER_ENGINE_SHA256 }}
         run: |
-          flutter doctor -v
+          flutter --version
           flutter precache --windows
           $engineArchive = "$env:RUNNER_TEMP\windows-x64-release.zip"
           Invoke-WebRequest `
@@ -183,6 +202,14 @@ jobs:
             grep -n -E '_enableFilter|enableFilter !=|filteredEntries = widget.dropdownMenuEntries' "$target_file" | head -n 40 >&2 || true
             exit 1
           fi
+
+      - name: Format refreshed Flutter sources
+        shell: pwsh
+        run: |
+          dart format .\flutter\lib\desktop\pages\desktop_home_page.dart .\flutter\lib\desktop\pages\connection_page.dart
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python .\.saurus\tools\verify_saurus_ux_refresh.py --source-root .
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9

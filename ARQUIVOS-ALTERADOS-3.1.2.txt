@@ -1,0 +1,17 @@
+Files added or changed for 3.1.2:
+
+.github/workflows/build-saurus-remote-windows.yml
+.saurus/CHANGELOG.md
+.saurus/README.md
+.saurus/scripts/Build-SaurusRemote.ps1
+.saurus/tests/test_ux_refresh.py
+.saurus/tools/Optimize-SaurusWorkflow.ps1
+.saurus/tools/apply_saurus_ux_refresh.py
+.saurus/tools/optimize_saurus_workflow.py
+.saurus/tools/verify_saurus_ux_refresh.py
+Install-SaurusUxRefresh.ps1
+Preparar-Projeto.ps1
+README-COMPILACAO.md
+Verificar-Projeto.ps1
+VALIDATION-REPORT-3.1.2.txt
+ARQUIVOS-ALTERADOS-3.1.2.txt

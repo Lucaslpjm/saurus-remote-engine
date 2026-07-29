@@ -3,7 +3,7 @@ param(
     [Parameter(Mandatory = $true)]
     [string]$SourceRoot,
     [string]$OutputRoot = "",
-    [string]$BuildLabel = "saurus.3.0",
+    [string]$BuildLabel = "saurus.3.1.2",
     [switch]$ApplyCustomization,
     [switch]$WithoutHwCodec,
     [switch]$WithoutVram,
@@ -86,9 +86,17 @@ try {
 
         & (Join-Path $PSScriptRoot "Apply-SaurusCustomization.ps1") -SourceRoot $Root
         if ($LASTEXITCODE -ne 0) { throw "Falha ao aplicar customizacao." }
+
+        $uxPatch = Join-Path $PSScriptRoot "..\tools\apply_saurus_ux_refresh.py"
+        & $python $uxPatch --source-root $Root
+        if ($LASTEXITCODE -ne 0) { throw "Falha ao aplicar o Saurus UX Refresh 3.1.2." }
     }
     & (Join-Path $PSScriptRoot "Verify-SaurusCustomization.ps1") -SourceRoot $Root
     if ($LASTEXITCODE -ne 0) { throw "A validacao da customizacao falhou." }
+
+    $uxVerify = Join-Path $PSScriptRoot "..\tools\verify_saurus_ux_refresh.py"
+    & $python $uxVerify --source-root $Root
+    if ($LASTEXITCODE -ne 0) { throw "A validacao do Saurus UX Refresh 3.1.2 falhou." }
 
     $buildArgs = @(".\build.py", "--portable", "--flutter", "--skip-portable-pack")
     if (-not $WithoutHwCodec) { $buildArgs += "--hwcodec" }

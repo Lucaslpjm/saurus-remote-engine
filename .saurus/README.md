@@ -1,4 +1,4 @@
-# Saurus Remote 1.4.9-saurus.3.0 — interface clara
+# Saurus Remote 1.4.9-saurus.3.1.2 — UX responsiva e diagnóstico
 
 Este kit aplica a identidade completa do **Saurus Remote** sobre o RustDesk 1.4.9 e transforma o próprio cliente RustDesk na aplicação principal.
 
@@ -30,7 +30,7 @@ Este kit aplica a identidade completa do **Saurus Remote** sobre o RustDesk 1.4.
 Extraia este pacote, abra o PowerShell e execute:
 
 ```powershell
-$Kit = "C:\Users\Lucas\Documents\projetos\SaurusRemote-Kit\SaurusRemote-RustDesk-1.4.9-saurus.3.0-LightUiKit"
+$Kit = "C:\Users\Lucas\Documents\projetos\SaurusRemote-Kit\SaurusRemote-1.4.9-saurus.3.1.2"
 $Repositorio = "C:\Users\Lucas\Documents\projetos\saurus-remote-engine"
 
 powershell -ExecutionPolicy Bypass `
@@ -44,8 +44,8 @@ Depois envie as alterações:
 ```powershell
 Set-Location $Repositorio
 
-git add .saurus .github/workflows/build-saurus-remote-windows.yml
-git commit -m "feat: aplica interface clara Saurus Remote sem login e mapa"
+git add .saurus .github/workflows/build-saurus-remote-windows.yml Preparar-Projeto.ps1 Verificar-Projeto.ps1 README-COMPILACAO.md
+git commit -m "feat: aplica UX responsiva e diagnostico do Saurus Remote"
 git push origin "saurus/1.4.9"
 ```
 
@@ -57,15 +57,15 @@ Actions
 → Run workflow
 
 Branch: saurus/1.4.9
-Identificador: saurus.3.0
+Identificador: saurus.3.1.2
 Impressão remota: false
 ```
 
 ## Arquivos que serão gerados
 
 ```text
-SaurusRemote-1.4.9-saurus.3.0-Windows-x64.exe
-SaurusRemote-1.4.9-saurus.3.0-Windows-x64.zip
+SaurusRemote-1.4.9-saurus.3.1.2-Windows-x64.exe
+SaurusRemote-1.4.9-saurus.3.1.2-Windows-x64.zip
 engine-manifest.json
 SHA256SUMS.txt
 ```

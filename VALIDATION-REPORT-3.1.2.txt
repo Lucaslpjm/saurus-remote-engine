@@ -1,0 +1,23 @@
+Saurus Remote 1.4.9 - UX Refresh 3.1.2
+Validation date: 2026-07-29
+
+Validated successfully:
+- Uploaded source snapshot structure inspected.
+- RustDesk 1.4.9 patch-point preflight passed for all files present in the archive.
+- The only unavailable preflight file in the uploaded ZIP was libs/hbb_common/src/config.rs,
+  because libs/hbb_common is declared as a Git submodule and its content is not included
+  in the source archive. Preparar-Projeto.ps1 resolves this with a recursive clone.
+- Synthetic UX regression test passed.
+- Real RustDesk 1.4.9 desktop_home_page.dart and connection_page.dart integration fixture passed.
+- UX patch idempotence passed.
+- Workflow optimizer idempotence passed.
+- Python source compilation passed.
+- GitHub Actions workflow YAML parsed successfully.
+- Workflow keeps Rust and vcpkg caching, adds pub dependency caching, shallow checkout,
+  concurrency cancellation, formatting, static verification, and UX regression tests.
+
+Not executed in this environment:
+- Final native Windows x64 compilation.
+- Flutter analyzer/formatter against the complete generated bridge.
+
+Those checks run in the provided windows-2022 GitHub Actions workflow before the native build.

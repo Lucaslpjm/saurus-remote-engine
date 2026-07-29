@@ -1,4 +1,14 @@
-# Changelog
+# Changelog Saurus Remote
+
+## 3.1.2 - 2026-07-29
+
+- Aumenta a janela inicial e mantém o encaixe na área útil do monitor.
+- Reorganiza o Dashboard em dispositivo/conexão no topo e histórico em largura total abaixo.
+- Remove diagnóstico rápido e informações de rede duplicadas do Dashboard.
+- Cria diagnóstico funcional com testes de serviço, ID, motor, servidor/porta, DNS, disponibilidade e versão.
+- Define escala adaptada e áudio desativado somente quando ainda não há preferência salva pelo usuário.
+- Separa os modos de conexão e histórico da `ConnectionPage` sem duplicar controladores globais.
+- Otimiza o workflow com concorrência, checkout raso, cache somente de dependências pub, validação e formatação.
 
 ## 1.4.9-saurus.3.0 — interface clara sem login e sem mapa
 
