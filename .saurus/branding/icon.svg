@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Saurus Remote">
+  <rect width="512" height="512" rx="96" fill="#202030"/>
+  <ellipse cx="188" cy="250" rx="29" ry="66" fill="#E3CF66"/>
+  <path d="M188 122h72l112 112c18 18 18 47 0 65L260 411h-72l105-105c22-22 22-58 0-80L188 122z" fill="#E3CF66"/>
+</svg>
