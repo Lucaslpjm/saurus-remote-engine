@@ -6,7 +6,7 @@ on:
       build_label:
         description: "Identificador da compilacao Saurus"
         required: true
-        default: "saurus.3.0"
+        default: "saurus.3.0.1"
         type: string
       include_remote_printer:
         description: "Incluir driver de impressao remota upstream (desativado por padrao para maximizar coexistencia)"
@@ -110,7 +110,6 @@ jobs:
           channel: stable
           flutter-version: ${{ env.FLUTTER_VERSION }}
           architecture: x64
-          cache: true
 
       - name: Install RustDesk custom Flutter engine
         shell: pwsh
@@ -143,14 +142,47 @@ jobs:
           }
           Copy-Item -Path "$env:RUNNER_TEMP\windows-x64-release\*" -Destination $engineTarget -Recurse -Force
 
-      - name: Apply Flutter 3.24 dropdown patch
+      - name: Apply Flutter 3.24 dropdown patch safely
         shell: bash
         run: |
           set -euo pipefail
+
           flutter_root="$(dirname "$(dirname "$(which flutter)")")"
-          cp .github/patches/flutter_3.24.4_dropdown_menu_enableFilter.diff "$flutter_root/"
+          patch_file="$GITHUB_WORKSPACE/.github/patches/flutter_3.24.4_dropdown_menu_enableFilter.diff"
+          target_file="$flutter_root/packages/flutter/lib/src/material/dropdown_menu.dart"
+
+          echo "Flutter root: $flutter_root"
+          flutter --version
+
+          if [[ ! -f "$patch_file" ]]; then
+            echo "Patch upstream nao encontrado: $patch_file" >&2
+            exit 1
+          fi
+          if [[ ! -f "$target_file" ]]; then
+            echo "Arquivo alvo do Flutter nao encontrado: $target_file" >&2
+            exit 1
+          fi
+
           cd "$flutter_root"
-          git apply flutter_3.24.4_dropdown_menu_enableFilter.diff
+
+          # O SDK Flutter nao deve ser cacheado depois de modificado. Mesmo assim,
+          # este passo e idempotente para suportar runners/caches ja alterados.
+          if git apply --check "$patch_file"; then
+            git apply "$patch_file"
+            echo "Patch Flutter aplicado com sucesso."
+          elif git apply --reverse --check "$patch_file"; then
+            echo "Patch Flutter ja estava aplicado; continuando sem reaplicar."
+          elif grep -Fq 'bool _enableFilter = false;' "$target_file" \
+            && grep -Fq 'if (oldWidget.enableFilter != widget.enableFilter)' "$target_file" \
+            && grep -Fq '_enableFilter = false;' "$target_file" \
+            && grep -Fq 'filteredEntries = widget.dropdownMenuEntries;' "$target_file"; then
+            echo "O comportamento esperado do patch ja existe no SDK Flutter; continuando."
+          else
+            echo "O patch nao pode ser aplicado e o comportamento esperado nao foi detectado." >&2
+            echo "Trechos relevantes do arquivo alvo:" >&2
+            grep -n -E '_enableFilter|enableFilter !=|filteredEntries = widget.dropdownMenuEntries' "$target_file" | head -n 40 >&2 || true
+            exit 1
+          fi
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9
