@@ -1,0 +1,398 @@
+name: Build Saurus Remote Engine (Windows x64)
+
+on:
+  workflow_dispatch:
+    inputs:
+      build_label:
+        description: "Identificador da compilacao Saurus"
+        required: true
+        default: "saurus.2"
+        type: string
+      include_remote_printer:
+        description: "Incluir driver de impressao remota upstream (desativado por padrao para maximizar coexistencia)"
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+env:
+  RUST_VERSION: "1.75"
+  LLVM_VERSION: "15.0.6"
+  FLUTTER_VERSION: "3.24.5"
+  VCPKG_COMMIT_ID: "120deac3062162151622ca4860575a33844ba10b"
+  UPSTREAM_VERSION: "1.4.9"
+  PRODUCT_VERSION: "1.4.9-${{ inputs.build_label }}"
+  VCPKG_BINARY_SOURCES: "clear;x-gha,readwrite"
+
+jobs:
+  generate-bridge:
+    uses: ./.github/workflows/bridge.yml
+
+  build-topmost-window:
+    uses: ./.github/workflows/third-party-RustDeskTempTopMostWindow.yml
+    with:
+      upload-artifact: true
+      target: windows-2022
+      configuration: Release
+      platform: x64
+      target_version: Windows10
+
+  build-windows-x64:
+    name: Windows x64 custom engine
+    needs: [generate-bridge, build-topmost-window]
+    runs-on: windows-2022
+    timeout-minutes: 120
+
+    steps:
+      - name: Export cache variables for vcpkg
+        uses: actions/github-script@d7906e4ad0b1822421a7e6a35d5ca353c962f410
+        with:
+          script: |
+            core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
+            core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
+
+      - name: Checkout fork with submodules
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Validate build label
+        shell: pwsh
+        run: |
+          $label = '${{ inputs.build_label }}'
+          if ($label -notmatch '^[A-Za-z0-9][A-Za-z0-9._-]{0,39}$') {
+            throw 'build_label invalido. Use apenas letras, numeros, ponto, sublinhado e hifen (maximo 40 caracteres).'
+          }
+
+      - name: Confirm pinned upstream version
+        shell: pwsh
+        run: |
+          $cargo = Get-Content -LiteralPath .\Cargo.toml -Raw
+          if ($cargo -notmatch '(?m)^version\s*=\s*"1\.4\.9"\s*$') {
+            throw 'O fork nao esta fixado na versao RustDesk 1.4.9.'
+          }
+
+      - name: Validate RustDesk 1.4.9 patch points
+        shell: pwsh
+        run: |
+          python .\.saurus\tools\check_upstream_149.py --source-root .
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Apply Saurus customization
+        shell: pwsh
+        run: |
+          & .\.saurus\scripts\Apply-SaurusCustomization.ps1 -SourceRoot $PWD
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Verify Saurus customization and secret policy
+        shell: pwsh
+        run: |
+          & .\.saurus\scripts\Verify-SaurusCustomization.ps1 -SourceRoot $PWD
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Restore generated Flutter-Rust bridge
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+        with:
+          name: bridge-artifact
+          path: ./
+
+      - name: Install LLVM and Clang
+        uses: KyleMayes/install-llvm-action@ebc0426251bc40c7cd31162802432c68818ab8f0
+        with:
+          version: ${{ env.LLVM_VERSION }}
+
+      - name: Install Flutter
+        uses: subosito/flutter-action@2783a3f08e1baf891508463f8c6653c258246225
+        with:
+          channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          architecture: x64
+          cache: true
+
+      - name: Install RustDesk custom Flutter engine
+        shell: pwsh
+        env:
+          EXPECTED_ENGINE_SHA256: ${{ secrets.SAURUS_FLUTTER_ENGINE_SHA256 }}
+        run: |
+          flutter doctor -v
+          flutter precache --windows
+          $engineArchive = "$env:RUNNER_TEMP\windows-x64-release.zip"
+          Invoke-WebRequest `
+            -Uri 'https://github.com/rustdesk/engine/releases/download/main/windows-x64-release.zip' `
+            -OutFile $engineArchive
+          $actualHash = (Get-FileHash -LiteralPath $engineArchive -Algorithm SHA256).Hash.ToLowerInvariant()
+          "FLUTTER_ENGINE_SHA256=$actualHash" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          if (-not [string]::IsNullOrWhiteSpace($env:EXPECTED_ENGINE_SHA256)) {
+            $expectedHash = $env:EXPECTED_ENGINE_SHA256.Trim().ToLowerInvariant()
+            if ($actualHash -ne $expectedHash) {
+              throw "Checksum do engine Flutter divergente. Esperado: $expectedHash; recebido: $actualHash"
+            }
+          } else {
+            Write-Warning 'SAURUS_FLUTTER_ENGINE_SHA256 nao configurado. O hash recebido sera registrado no manifesto, mas nao foi previamente fixado.'
+          }
+          Expand-Archive `
+            -LiteralPath $engineArchive `
+            -DestinationPath "$env:RUNNER_TEMP\windows-x64-release" `
+            -Force
+          $engineTarget = "C:\hostedtoolcache\windows\flutter\stable-$env:FLUTTER_VERSION-x64\bin\cache\artifacts\engine\windows-x64-release"
+          if (-not (Test-Path -LiteralPath $engineTarget -PathType Container)) {
+            throw "Diretorio do engine Flutter nao encontrado: $engineTarget"
+          }
+          Copy-Item -Path "$env:RUNNER_TEMP\windows-x64-release\*" -Destination $engineTarget -Recurse -Force
+
+      - name: Apply Flutter 3.24 dropdown patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          flutter_root="$(dirname "$(dirname "$(which flutter)")")"
+          cp .github/patches/flutter_3.24.4_dropdown_menu_enableFilter.diff "$flutter_root/"
+          cd "$flutter_root"
+          git apply flutter_3.24.4_dropdown_menu_enableFilter.diff
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+          targets: x86_64-pc-windows-msvc
+          components: rustfmt
+
+      - name: Restore Rust cache
+        uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32
+        with:
+          prefix-key: saurus-remote-windows-x64
+
+      - name: Setup pinned vcpkg
+        uses: lukka/run-vcpkg@b1a0dd252f06b9e25b3c022a9a03bd7a427fb6a2
+        with:
+          vcpkgDirectory: C:\vcpkg
+          vcpkgGitCommitId: ${{ env.VCPKG_COMMIT_ID }}
+          doNotCache: false
+
+      - name: Install native dependencies
+        shell: bash
+        env:
+          VCPKG_DEFAULT_HOST_TRIPLET: x64-windows-static
+        run: |
+          set -euo pipefail
+          "$VCPKG_ROOT/vcpkg" install \
+            --triplet x64-windows-static \
+            --x-install-root="$VCPKG_ROOT/installed"
+
+      - name: Build customized RustDesk core and Flutter UI
+        shell: pwsh
+        run: |
+          python3 .\build.py --portable --flutter --skip-portable-pack --hwcodec --vram
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $release = '.\flutter\build\windows\x64\runner\Release'
+          if (-not (Test-Path -LiteralPath $release -PathType Container)) {
+            throw "Saida Flutter nao encontrada: $release"
+          }
+          if (Test-Path -LiteralPath .\rustdesk) {
+            Remove-Item -LiteralPath .\rustdesk -Recurse -Force
+          }
+          Move-Item -LiteralPath $release -Destination .\rustdesk
+
+      - name: Bundle standard Windows virtual-display and printer components
+        shell: pwsh
+        env:
+          EXPECTED_USBMMIDD_SHA256: ${{ secrets.SAURUS_USBMMIDD_SHA256 }}
+          INCLUDE_REMOTE_PRINTER: ${{ inputs.include_remote_printer }}
+        run: |
+          $usbArchive = '.\usbmmidd_v2.zip'
+          Invoke-WebRequest -Uri 'https://github.com/rustdesk-org/rdev/releases/download/usbmmidd_v2/usbmmidd_v2.zip' -OutFile $usbArchive
+          $usbHash = (Get-FileHash -LiteralPath $usbArchive -Algorithm SHA256).Hash.ToLowerInvariant()
+          "USBMMIDD_SHA256=$usbHash" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          if (-not [string]::IsNullOrWhiteSpace($env:EXPECTED_USBMMIDD_SHA256)) {
+            if ($usbHash -ne $env:EXPECTED_USBMMIDD_SHA256.Trim().ToLowerInvariant()) {
+              throw 'Checksum do usbmmidd divergente.'
+            }
+          } else {
+            Write-Warning 'SAURUS_USBMMIDD_SHA256 nao configurado; o hash recebido sera apenas registrado.'
+          }
+          Expand-Archive $usbArchive -DestinationPath . -Force
+          Remove-Item -LiteralPath .\usbmmidd_v2\Win32 -Recurse -Force -ErrorAction SilentlyContinue
+          Remove-Item -LiteralPath .\usbmmidd_v2\deviceinstaller64.exe, .\usbmmidd_v2\deviceinstaller.exe, .\usbmmidd_v2\usbmmidd.bat -Force -ErrorAction SilentlyContinue
+          Move-Item -LiteralPath .\usbmmidd_v2 -Destination .\rustdesk\usbmmidd_v2 -Force
+
+          $printerIncluded = $false
+          if ($env:INCLUDE_REMOTE_PRINTER -eq 'true') {
+            try {
+              Invoke-WebRequest -Uri 'https://github.com/rustdesk/hbb_common/releases/download/driver/rustdesk_printer_driver_v4-1.4.zip' -OutFile .\rustdesk_printer_driver_v4-1.4.zip
+              Invoke-WebRequest -Uri 'https://github.com/rustdesk/hbb_common/releases/download/driver/printer_driver_adapter.zip' -OutFile .\printer_driver_adapter.zip
+              Invoke-WebRequest -Uri 'https://github.com/rustdesk/hbb_common/releases/download/driver/sha256sums' -OutFile .\printer-sha256sums.txt
+              $expectedDriver = (Select-String -Path .\printer-sha256sums.txt -Pattern '^([a-fA-F0-9]{64}) \*rustdesk_printer_driver_v4-1.4\.zip$').Matches.Groups[1].Value.ToLowerInvariant()
+              $expectedAdapter = (Select-String -Path .\printer-sha256sums.txt -Pattern '^([a-fA-F0-9]{64}) \*printer_driver_adapter\.zip$').Matches.Groups[1].Value.ToLowerInvariant()
+              $actualDriver = (Get-FileHash .\rustdesk_printer_driver_v4-1.4.zip -Algorithm SHA256).Hash.ToLowerInvariant()
+              $actualAdapter = (Get-FileHash .\printer_driver_adapter.zip -Algorithm SHA256).Hash.ToLowerInvariant()
+              if (-not $expectedDriver -or -not $expectedAdapter -or $expectedDriver -ne $actualDriver -or $expectedAdapter -ne $actualAdapter) {
+                throw 'Checksum dos componentes de impressao divergente.'
+              }
+              Expand-Archive .\rustdesk_printer_driver_v4-1.4.zip -DestinationPath . -Force
+              New-Item -ItemType Directory -Path .\rustdesk\drivers -Force | Out-Null
+              Move-Item .\rustdesk_printer_driver_v4-1.4 .\rustdesk\drivers\RustDeskPrinterDriver -Force
+              Expand-Archive .\printer_driver_adapter.zip -DestinationPath . -Force
+              Move-Item .\printer_driver_adapter.dll .\rustdesk\printer_driver_adapter.dll -Force
+              $printerIncluded = $true
+            } catch {
+              throw "Falha ao incluir componentes opcionais de impressao: $($_.Exception.Message)"
+            }
+          } else {
+            Write-Host 'Driver de impressao remota nao incluido. Essa e a configuracao recomendada para a primeira versao coexistente.'
+          }
+          "PRINTER_DRIVER_INCLUDED=$($printerIncluded.ToString().ToLowerInvariant())" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Copy compiled Runner resources for portable packer
+        shell: pwsh
+        run: |
+          $runnerRes = Get-ChildItem -Path . -Recurse -Filter Runner.res -File |
+            Where-Object { $_.FullName -notmatch '\\libs\\portable\\Runner\.res$' } |
+            Select-Object -First 1
+          if (-not $runnerRes) {
+            throw 'Runner.res nao foi localizado.'
+          }
+          Copy-Item -LiteralPath $runnerRes.FullName -Destination .\libs\portable\Runner.res -Force
+
+      - name: Restore topmost-window component
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+        with:
+          name: topmostwindow-artifacts-x64
+          path: ./rustdesk
+
+      - name: Rename engine and validate package contents
+        shell: pwsh
+        run: |
+          $upstreamExe = '.\rustdesk\rustdesk.exe'
+          $saurusExe = '.\rustdesk\SaurusRemote.exe'
+          if (-not (Test-Path -LiteralPath $upstreamExe -PathType Leaf)) {
+            throw "Executavel upstream nao encontrado: $upstreamExe"
+          }
+          Move-Item -LiteralPath $upstreamExe -Destination $saurusExe -Force
+          if (-not (Test-Path -LiteralPath '.\rustdesk\librustdesk.dll' -PathType Leaf)) {
+            throw 'librustdesk.dll nao encontrada no pacote.'
+          }
+          if (Test-Path -LiteralPath '.\rustdesk\RustDesk.exe') {
+            throw 'Foi encontrado um segundo executavel RustDesk no pacote.'
+          }
+
+      - name: Sign folder binaries when certificate is configured
+        shell: pwsh
+        env:
+          PFX_BASE64: ${{ secrets.SAURUS_CODESIGN_PFX_BASE64 }}
+          PFX_PASSWORD: ${{ secrets.SAURUS_CODESIGN_PFX_PASSWORD }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:PFX_BASE64)) {
+            Write-Host 'Certificado nao configurado; artefatos serao gerados sem assinatura.'
+            exit 0
+          }
+          $pfxPath = Join-Path $env:RUNNER_TEMP 'saurus-codesign.pfx'
+          [IO.File]::WriteAllBytes($pfxPath, [Convert]::FromBase64String($env:PFX_BASE64))
+          $signtool = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin" -Recurse -Filter signtool.exe -File |
+            Where-Object { $_.FullName -match '\\x64\\signtool\.exe$' } |
+            Sort-Object FullName -Descending |
+            Select-Object -First 1
+          if (-not $signtool) { throw 'signtool.exe nao encontrado.' }
+          Get-ChildItem -LiteralPath .\rustdesk -Recurse -File |
+            Where-Object { $_.Extension -in '.exe', '.dll' } |
+            ForEach-Object {
+              & $signtool.FullName sign /f $pfxPath /p $env:PFX_PASSWORD /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 $_.FullName
+              if ($LASTEXITCODE -ne 0) { throw "Falha ao assinar $($_.FullName)" }
+            }
+          Remove-Item -LiteralPath $pfxPath -Force
+
+      - name: Create portable single-file executable
+        shell: bash
+        run: |
+          set -euo pipefail
+          sed -i '/dpiAware/d' res/manifest.xml
+          pushd libs/portable
+          python -m pip install -r requirements.txt
+          python ./generate.py -f ../../rustdesk -o . -e ../../rustdesk/SaurusRemote.exe
+          popd
+          test -f target/release/rustdesk-portable-packer.exe
+          mkdir -p dist
+          mv target/release/rustdesk-portable-packer.exe "dist/SaurusRemote-${PRODUCT_VERSION}-Windows-x64.exe"
+
+      - name: Sign portable executable when certificate is configured
+        shell: pwsh
+        env:
+          PFX_BASE64: ${{ secrets.SAURUS_CODESIGN_PFX_BASE64 }}
+          PFX_PASSWORD: ${{ secrets.SAURUS_CODESIGN_PFX_PASSWORD }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:PFX_BASE64)) { exit 0 }
+          $pfxPath = Join-Path $env:RUNNER_TEMP 'saurus-codesign-final.pfx'
+          [IO.File]::WriteAllBytes($pfxPath, [Convert]::FromBase64String($env:PFX_BASE64))
+          $signtool = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin" -Recurse -Filter signtool.exe -File |
+            Where-Object { $_.FullName -match '\\x64\\signtool\.exe$' } |
+            Sort-Object FullName -Descending |
+            Select-Object -First 1
+          if (-not $signtool) { throw 'signtool.exe nao encontrado.' }
+          $portable = Get-ChildItem -LiteralPath .\dist -Filter 'SaurusRemote-*-Windows-x64.exe' -File | Select-Object -First 1
+          & $signtool.FullName sign /f $pfxPath /p $env:PFX_PASSWORD /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 $portable.FullName
+          if ($LASTEXITCODE -ne 0) { throw 'Falha ao assinar o executavel portatil.' }
+          Remove-Item -LiteralPath $pfxPath -Force
+
+      - name: Create ZIP, manifest and SHA-256 checksums
+        shell: pwsh
+        env:
+          SIGNING_CONFIGURED: ${{ secrets.SAURUS_CODESIGN_PFX_BASE64 != '' }}
+        run: |
+          $manifest = [ordered]@{
+            schemaVersion = 1
+            product = 'Saurus Remote Engine'
+            displayName = 'Saurus Remote'
+            internalName = 'SaurusRemote'
+            upstreamVersion = $env:UPSTREAM_VERSION
+            productVersion = $env:PRODUCT_VERSION
+            architecture = 'windows-x64'
+            toolchain = [ordered]@{
+              rust = $env:RUST_VERSION
+              llvm = $env:LLVM_VERSION
+              flutter = $env:FLUTTER_VERSION
+              vcpkgCommit = $env:VCPKG_COMMIT_ID
+              flutterEngineSha256 = $env:FLUTTER_ENGINE_SHA256
+              usbmmiddSha256 = $env:USBMMIDD_SHA256
+            }
+            optionalComponents = [ordered]@{
+              virtualDisplay = $true
+              remotePrinter = [bool]::Parse($env:PRINTER_DRIVER_INCLUDED)
+              topmostWindow = $true
+            }
+            serviceName = 'SaurusRemote'
+            installPath = '%ProgramFiles%\Saurus Software\Saurus Remote'
+            userConfigPath = '%APPDATA%\SaurusRemote'
+            serviceConfigPath = '%WINDIR%\ServiceProfiles\LocalService\AppData\Roaming\SaurusRemote'
+            rendezvousServer = '20.195.216.23:443'
+            permanentPasswordEmbedded = $true
+            fixedPasswordPolicy = $true
+            passwordProvisioning = 'engine-enforced on service/server startup; stdin repair supported'
+            upstreamSelfUpdateEnabled = $false
+            authenticodeRequested = [bool]::Parse($env:SIGNING_CONFIGURED)
+            buildUtc = [DateTime]::UtcNow.ToString('o')
+            sourceCommit = '${{ github.sha }}'
+          }
+          $manifest | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath .\rustdesk\engine-manifest.json -Encoding UTF8
+          Copy-Item -LiteralPath .\rustdesk\engine-manifest.json -Destination .\dist\engine-manifest.json -Force
+
+          $zip = ".\dist\SaurusRemote-$env:PRODUCT_VERSION-Windows-x64.zip"
+          Compress-Archive -Path .\rustdesk\* -DestinationPath $zip -CompressionLevel Optimal -Force
+
+          $hashLines = Get-ChildItem -LiteralPath .\dist -File |
+            Where-Object { $_.Name -ne 'SHA256SUMS.txt' } |
+            Sort-Object Name |
+            ForEach-Object {
+              $hash = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+              "$hash *$($_.Name)"
+            }
+          $hashLines | Set-Content -LiteralPath .\dist\SHA256SUMS.txt -Encoding ASCII
+          Get-Content -LiteralPath .\dist\SHA256SUMS.txt
+
+      - name: Upload Saurus Remote engine artifacts
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: SaurusRemote-${{ env.PRODUCT_VERSION }}-Windows-x64
+          path: ./dist/*
+          if-no-files-found: error
+          retention-days: 30

@@ -1,0 +1,9 @@
+Saurus Remote inclui um fork modificado do RustDesk.
+
+Projeto upstream: https://github.com/rustdesk/rustdesk
+Versão-base deste kit: 1.4.9
+Licença declarada pelo projeto upstream: GNU Affero General Public License v3.0 (AGPL-3.0)
+
+Preserve o arquivo LICENSE do repositório RustDesk no código-fonte correspondente e cumpra as obrigações aplicáveis ao distribuir ou disponibilizar o software modificado. As marcas e recursos visuais da Saurus não são concedidos pela licença do RustDesk.
+
+Este aviso não substitui orientação jurídica.
