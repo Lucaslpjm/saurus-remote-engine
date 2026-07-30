@@ -87,7 +87,7 @@ Check-FileContains "flutter\lib\common.dart" 'static const Color accent = Color(
 Check-FileContains "flutter\lib\common.dart" 'static const Color canvasColor = Color(0xFFF5F6F8);' "Fundo claro Saurus"
 Check-FileContains "flutter\lib\common.dart" 'SAURUS_REMOTE_FIXED_LIGHT_THEME' "Tema claro fixo"
 Check-FileContains "flutter\lib\desktop\pages\desktop_home_page.dart" 'Widget _buildSaurusShell(BuildContext context)' "Dashboard claro Saurus"
-Check-FileContains "flutter\lib\desktop\pages\desktop_home_page.dart" "SAURUS_REMOTE_PRODUCTION_UI_2026_07" "Marcador da UI final de producao"
+Check-FileContains "flutter\lib\desktop\pages\desktop_home_page.dart" "SAURUS_REMOTE_PRODUCTION_UI_FINAL" "Marcador da UI final de producao"
 Check-FileContains "flutter\lib\desktop\pages\desktop_home_page.dart" "Este dispositivo" "Painel deste dispositivo"
 Check-FileContains "flutter\lib\desktop\pages\desktop_home_page.dart" "Conectar" "Painel de conexao"
 Check-FileNotContains "flutter\lib\desktop\pages\desktop_home_page.dart" "Conectar e acessar sessoes recentes" "Painel antigo de conexoes"

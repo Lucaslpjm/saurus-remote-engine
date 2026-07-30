@@ -6,7 +6,7 @@ on:
       build_label:
         description: "Identificador da compilacao Saurus"
         required: true
-        default: "saurus.3.2.3.2"
+        default: "saurus.3.2.3.3"
         type: string
       include_remote_printer:
         description: "Incluir driver de impressao remota upstream (desativado por padrao para maximizar coexistencia)"
@@ -53,6 +53,7 @@ jobs:
         shell: pwsh
         run: |
           python .\.saurus\tools\validate_kit.py
+          python .\.saurus\tests\test_production_ui_marker_contract.py
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Compile installer preflight
         shell: pwsh
@@ -264,7 +265,7 @@ jobs:
             }
           }
           $desktopHomeContent = Get-Content -LiteralPath .\flutter\lib\desktop\pages\desktop_home_page.dart -Raw
-          if ($desktopHomeContent -notmatch 'SAURUS_REMOTE_PRODUCTION_UI_2026_07') {
+          if ($desktopHomeContent -notmatch 'SAURUS_REMOTE_PRODUCTION_UI_FINAL') {
             throw 'O marcador da UI final nao esta presente antes do build.'
           }
           if ($desktopHomeContent -match 'Diagn[oó]stico r[aá]pido|Configura[cç][oõ]es de rede|Conectar e acessar sess[oõ]es recentes') {

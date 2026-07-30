@@ -62,6 +62,7 @@ REQUIRED = [
     "installer/Run-SaurusRemotePostInstall.ps1",
     "tools/verify_saurus_ux_refresh.py",
     "tools/finalize_saurus_production_ui.py",
+    "tests/test_production_ui_marker_contract.py",
     "tools/repair_saurus_utf8_ui.py",
     "tools/apply_saurus_ux_refresh.py",
     "scripts/Apply-SaurusProductionUx.ps1",
@@ -514,6 +515,21 @@ else:
                 f"ativo={active_ux_pipeline_marker}; antigos={', '.join(stale)}"
             )
 
+# SAURUS_REMOTE_STABLE_FINAL_UI_MARKER_CONTRACT_V1
+stable_final_ui_marker = "SAURUS_REMOTE_PRODUCTION_UI_FINAL"
+final_ui_source = text("tools/finalize_saurus_production_ui.py")
+verify_customization_source = text("scripts/Verify-SaurusCustomization.ps1")
+if stable_final_ui_marker not in final_ui_source:
+    error("O finalizador da interface nao declara o marcador final estavel.")
+if stable_final_ui_marker not in verify_customization_source:
+    error("Verify-SaurusCustomization.ps1 nao valida o marcador final estavel.")
+stale_final_ui_markers = [
+    "SAURUS_REMOTE_" + "PRODUCTION_UI_2026_07",
+    "SAURUS_REMOTE_" + "FINAL_UI_3_2_3",
+]
+for stale_final_ui_marker in stale_final_ui_markers:
+    if stale_final_ui_marker in final_ui_source or stale_final_ui_marker in verify_customization_source:
+        error(f"Marcador final versionado ainda presente: {stale_final_ui_marker}")
 print("Saurus Remote customization kit - validacao estatica")
 print(f"Raiz: {ROOT}")
 print(f"Arquivos: {sum(1 for p in ROOT.rglob('*') if p.is_file())}")

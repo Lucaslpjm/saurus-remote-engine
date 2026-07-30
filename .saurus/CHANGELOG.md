@@ -1,3 +1,9 @@
+## 1.4.9-saurus.3.2.3.3
+
+- Substitui marcadores versionados por SAURUS_REMOTE_PRODUCTION_UI_FINAL.
+- Alinha produtor, Verify-SaurusCustomization e validate_kit.py.
+- Adiciona teste executavel contra divergencia futura do contrato.
+- Mantem a interface responsiva e o contrato Unicode existentes.
 ## 1.4.9-saurus.3.2.3.2
 
 - Remove literais acentuados do pipeline PowerShell executado por Windows PowerShell 5.1.

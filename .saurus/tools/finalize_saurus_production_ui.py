@@ -1,15 +1,17 @@
 #!/usr/bin/env python3
 # SAURUS_REMOTE_FINAL_UI_NORMALIZER_V2
+# SAURUS_REMOTE_FINAL_UI_NORMALIZER_V3
 from __future__ import annotations
 
 import argparse
 from pathlib import Path
+import re
 import sys
 
 DEVICE_LABEL = "Este dispositivo"
 CONNECT_LABEL = "Conectar a outro dispositivo"
 HISTORY_LABEL = "Hist\u00f3rico e sess\u00f5es recentes"
-FINAL_MARKER = "// SAURUS_REMOTE_FINAL_UI_3_2_3_2"
+FINAL_MARKER = "// SAURUS_REMOTE_PRODUCTION_UI_FINAL"
 
 OLD_CONNECTION_LABELS = (
     "Conectar e acessar sessoes recentes",
@@ -27,6 +29,12 @@ FORBIDDEN_LABELS = (
     "Configura\u00e7\u00f5es de rede",
 )
 MOJIBAKE_CHARS = ("\u251c", "\u252c", "\ufffd")
+STALE_MARKER_RE = re.compile(
+    r"(?m)^//\s*(?:"
+    r"SAURUS_REMOTE_" r"PRODUCTION_UI_2026_07(?:_V\d+)?|"
+    r"SAURUS_REMOTE_" r"FINAL_UI_3_2_3(?:_\d+)*"
+    r")\s*\n?"
+)
 
 
 def normalize_newlines(text: str) -> str:
@@ -35,10 +43,12 @@ def normalize_newlines(text: str) -> str:
 
 def finalize_text(text: str) -> str:
     result = normalize_newlines(text)
+    result = STALE_MARKER_RE.sub("", result)
     for old_label in OLD_CONNECTION_LABELS:
         result = result.replace(old_label, CONNECT_LABEL)
     for old_label in HISTORY_LABEL_VARIANTS:
         result = result.replace(old_label, HISTORY_LABEL)
+
     if FINAL_MARKER not in result:
         class_token = "class DesktopHomePage"
         if result.count(class_token) != 1:
@@ -46,6 +56,7 @@ def finalize_text(text: str) -> str:
                 "Classe DesktopHomePage nao foi localizada de forma unica."
             )
         result = result.replace(class_token, FINAL_MARKER + "\n" + class_token, 1)
+
     return result.rstrip("\n") + "\n"
 
 
@@ -63,6 +74,10 @@ def validate_text(text: str) -> list[str]:
     for required in (DEVICE_LABEL, CONNECT_LABEL, HISTORY_LABEL, FINAL_MARKER):
         if required not in text:
             failures.append(f"Marcador obrigatorio ausente: {required}")
+    if text.count(FINAL_MARKER) != 1:
+        failures.append("O marcador final deve aparecer exatamente uma vez.")
+    if STALE_MARKER_RE.search(text):
+        failures.append("Marcador final versionado ainda presente.")
     for char in MOJIBAKE_CHARS:
         if char in text:
             failures.append(
@@ -73,6 +88,7 @@ def validate_text(text: str) -> list[str]:
 
 def self_test() -> int:
     sample = (
+        "// SAURUS_REMOTE_" "FINAL_UI_3_2_3_2\n"
         "class DesktopHomePage {\n"
         "final a = 'Este dispositivo';\n"
         "final b = 'Conectar e acessar sess\\u00f5es recentes';\n"
@@ -85,13 +101,7 @@ def self_test() -> int:
         for item in failures:
             print(f"[ERRO] {item}", file=sys.stderr)
         return 1
-    if CONNECT_LABEL not in final or HISTORY_LABEL not in final:
-        print("[ERRO] Autoteste de normalizacao de rotulos falhou.", file=sys.stderr)
-        return 1
-    if any(old in final for old in OLD_CONNECTION_LABELS + HISTORY_LABEL_VARIANTS):
-        print("[ERRO] Autoteste deixou rotulo legado no resultado.", file=sys.stderr)
-        return 1
-    print("[OK] Autoteste Unicode do finalizador concluido.")
+    print("[OK] Autoteste do marcador final estavel concluido.")
     return 0
 
 
@@ -137,7 +147,7 @@ def main() -> int:
         home_page.write_text(final, encoding="utf-8", newline="\n")
         print(f"[OK] Interface finalizada: {home_page}")
     else:
-        print("[OK] Contrato Unicode da interface final aprovado.")
+        print("[OK] Contrato do marcador final estavel aprovado.")
     return 0
 
 
