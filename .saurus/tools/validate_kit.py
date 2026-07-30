@@ -311,14 +311,15 @@ for marker in [
     if marker not in installer_manifest:
         error(f"Manifesto administrativo incompleto: {marker}")
 for marker in [
-    'SAURUS_REMOTE_HEADLESS_POSTINSTALL_V2',
-    '"config", $ServiceName',
+    'SAURUS_REMOTE_HEADLESS_POSTINSTALL_V3',
+    'Win32_Service.Create',
+    'Win32_Service.Change',
     'Wait-ServiceRunning 45',
     'SaurusRemote_default.toml',
     'view_style',
     'disable_audio',
     'Preferencias adaptativas e audio desativado aplicados',
-    'Servico existente atualizado sem exclusao/recriacao.',
+    'Servico existente atualizado via Win32_Service.Change.',
 ]:
     if marker not in installer_config:
         error(f"Configurador headless do instalador incompleto: {marker}")
@@ -327,6 +328,8 @@ for forbidden in [
     '--install-service',
     'Start-Process -FilePath $Exe',
     'Wait-ServiceMissing',
+    'sc.exe create',
+    'sc.exe config',
 ]:
     if forbidden in installer_config:
         error(f"Fluxo grafico ou fragil ainda presente no configurador: {forbidden}")

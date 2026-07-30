@@ -98,3 +98,11 @@
 - Corrige de forma abrangente todas as referencias a `$home` no PowerShell embutido no workflow.
 - Substitui a variavel reservada por `$desktopHomeContent` sem depender do formato exato da linha.
 - Adiciona validacao para impedir nova colisao com a variavel automatica `$HOME`.
+## saurus.3.2.1.7
+
+- Corrige a falha 1639 do sc.exe ao criar o servico com caminho, conta e nome contendo espacos.
+- Substitui sc.exe create/config pelos metodos Win32_Service.Create e Win32_Service.Change.
+- Mantem o servico na conta NT AUTHORITY\LocalService com senha vazia para a conta interna.
+- Adiciona verificacao do PathName, StartName e StartMode depois da configuracao.
+- Rotaciona o log de instalacao para separar tentativas antigas da execucao atual.
+- Mantem instalacao headless, watchdog, preferencias adaptativas e audio desativado.

@@ -2,7 +2,7 @@
 [CmdletBinding()]
 param(
     [string]$InstallerScript = (Join-Path $PSScriptRoot "SaurusRemote.iss"),
-    [string]$ProductVersion = "1.4.9-saurus.3.2.1.1",
+    [string]$ProductVersion = "1.4.9-saurus.3.2.1.7",
     [switch]$StaticOnly
 )
 

@@ -1,4 +1,4 @@
-# SAURUS_REMOTE_PRODUCTION_RELEASE_TEST_V2
+# SAURUS_REMOTE_PRODUCTION_RELEASE_TEST_V3
 [CmdletBinding()]
 param()
 
@@ -36,21 +36,32 @@ foreach ($forbidden in @(
     "--password-stdin",
     "--install-service",
     "Start-Process -FilePath `$Exe",
-    "Wait-ServiceMissing"
+    "Wait-ServiceMissing",
+    'Invoke-Sc -Arguments @("create"',
+    'Invoke-Sc -Arguments @("config"',
+    'sc.exe create',
+    'sc.exe config'
 )) {
     if ($configureText.Contains($forbidden)) {
-        throw "O configurador ainda contem fluxo inseguro ou capaz de abrir a UI: $forbidden"
+        throw "O configurador ainda contem fluxo inseguro ou sujeito a quebra de argumentos: $forbidden"
     }
 }
+
 foreach ($required in @(
-    "SAURUS_REMOTE_HEADLESS_POSTINSTALL_V2",
-    '"config", $ServiceName',
-    "Servico existente atualizado sem exclusao/recriacao.",
+    "SAURUS_REMOTE_HEADLESS_POSTINSTALL_V3",
+    "Win32_Service.Create",
+    "Win32_Service.Change",
+    '$ServiceAccount = "NT AUTHORITY\LocalService"',
+    '$ServicePassword = ""',
+    "Servico criado via Win32_Service.Create.",
+    "Servico existente atualizado via Win32_Service.Change.",
     "Wait-ServiceRunning 45",
+    "New-NetFirewallRule",
+    "Rotate-InstallLog",
     "Preferencias adaptativas e audio desativado aplicados"
 )) {
     if (-not $configureText.Contains($required)) {
-        throw "Contrato do configurador headless ausente: $required"
+        throw "Contrato do configurador headless V3 ausente: $required"
     }
 }
 
@@ -85,5 +96,6 @@ if ([regex]::Matches($issText, '(?m)^\[Run\]\s*$').Count -ne 1 -or
 }
 
 Write-Host "[OK] UX responsiva restaurada e ligada ao build."
-Write-Host "[OK] Configuracao do instalador e totalmente headless."
+Write-Host "[OK] Configuracao do servico usa Win32_Service sem sc.exe create/config."
+Write-Host "[OK] Configuracao do instalador permanece totalmente headless."
 Write-Host "[OK] Watchdog de 120 segundos configurado."

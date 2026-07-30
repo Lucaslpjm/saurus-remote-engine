@@ -1,4 +1,4 @@
-# SAURUS_REMOTE_HEADLESS_POSTINSTALL_V2
+# SAURUS_REMOTE_HEADLESS_POSTINSTALL_V3
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)][string]$InstallDir
@@ -6,8 +6,11 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
+
 $Product = "Saurus Remote"
 $ServiceName = "SaurusRemote"
+$ServiceAccount = "NT AUTHORITY\LocalService"
+$ServicePassword = ""
 $InstallDir = [IO.Path]::GetFullPath($InstallDir)
 $Exe = Join-Path $InstallDir "SaurusRemote.exe"
 $ProgramDataDir = Join-Path $env:ProgramData "Saurus Software\Saurus Remote"
@@ -16,6 +19,18 @@ $Utf8NoBom = New-Object System.Text.UTF8Encoding($false)
 $ScExe = Join-Path $env:SystemRoot "System32\sc.exe"
 
 New-Item -ItemType Directory -Path $ProgramDataDir -Force | Out-Null
+
+function Rotate-InstallLog {
+    if (-not (Test-Path -LiteralPath $LogPath -PathType Leaf)) { return }
+    try {
+        $timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
+        $archive = Join-Path $ProgramDataDir "install-config-$timestamp.log"
+        Move-Item -LiteralPath $LogPath -Destination $archive -Force
+    }
+    catch {
+        [IO.File]::WriteAllText($LogPath, "", $Utf8NoBom)
+    }
+}
 
 function Log([string]$Message) {
     $line = "{0:yyyy-MM-dd HH:mm:ss.fff} {1}" -f (Get-Date), $Message
@@ -29,40 +44,217 @@ function Test-Administrator {
     return $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 }
 
-function Invoke-Sc {
+function Get-WmiManagedService {
+    return Get-WmiObject `
+        -Namespace "root\cimv2" `
+        -Class "Win32_Service" `
+        -Filter "Name='$ServiceName'" `
+        -ErrorAction SilentlyContinue
+}
+
+function Get-WmiReturnDescription([int]$Code) {
+    $descriptions = @{
+        0 = "Success"
+        1 = "Not Supported"
+        2 = "Access Denied"
+        3 = "Dependent Services Running"
+        4 = "Invalid Service Control"
+        5 = "Service Cannot Accept Control"
+        6 = "Service Not Active"
+        7 = "Service Request Timeout"
+        8 = "Unknown Failure"
+        9 = "Path Not Found"
+        10 = "Service Already Running"
+        11 = "Service Database Locked"
+        12 = "Service Dependency Deleted"
+        13 = "Service Dependency Failure"
+        14 = "Service Disabled"
+        15 = "Service Logon Failure"
+        16 = "Service Marked For Deletion"
+        17 = "Service No Thread"
+        18 = "Status Circular Dependency"
+        19 = "Status Duplicate Name"
+        20 = "Status Invalid Name"
+        21 = "Status Invalid Parameter"
+        22 = "Status Invalid Service Account"
+        23 = "Status Service Exists"
+        24 = "Service Already Paused"
+    }
+    if ($descriptions.ContainsKey($Code)) { return $descriptions[$Code] }
+    return "Codigo WMI desconhecido"
+}
+
+function Assert-WmiSuccess {
+    param(
+        [Parameter(Mandatory = $true)]$Result,
+        [Parameter(Mandatory = $true)][string]$Operation
+    )
+
+    if ($null -eq $Result -or $null -eq $Result.ReturnValue) {
+        throw "$Operation nao retornou um codigo WMI valido."
+    }
+
+    $code = [int]$Result.ReturnValue
+    Log "$Operation => ReturnValue=$code ($(Get-WmiReturnDescription $code))"
+    if ($code -ne 0) {
+        throw "$Operation falhou com codigo WMI $code ($(Get-WmiReturnDescription $code))."
+    }
+}
+
+function Stop-ManagedService {
+    $controller = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
+    if ($null -eq $controller) { return }
+
+    try {
+        if ($controller.Status -ne [System.ServiceProcess.ServiceControllerStatus]::Stopped) {
+            Stop-Service -Name $ServiceName -Force -ErrorAction Stop
+            $controller.Refresh()
+            $controller.WaitForStatus(
+                [System.ServiceProcess.ServiceControllerStatus]::Stopped,
+                [TimeSpan]::FromSeconds(30)
+            )
+        }
+    }
+    finally {
+        try { $controller.Dispose() } catch {}
+    }
+}
+
+function Set-OrCreateManagedService {
+    $binaryPath = '"' + $Exe + '" --service'
+    $existing = Get-WmiManagedService
+
+    if ($null -ne $existing) {
+        Stop-ManagedService
+        $existing = Get-WmiManagedService
+        if ($null -eq $existing) {
+            throw "O servico desapareceu durante a atualizacao."
+        }
+
+        $changeResult = $existing.Change(
+            $Product,
+            $binaryPath,
+            [uint32]16,
+            [uint32]1,
+            "Automatic",
+            $false,
+            $ServiceAccount,
+            $ServicePassword,
+            $null,
+            $null,
+            $null
+        )
+        Assert-WmiSuccess -Result $changeResult -Operation "Win32_Service.Change"
+        Log "Servico existente atualizado via Win32_Service.Change."
+    }
+    else {
+        $serviceClass = [wmiclass]"\\.\root\cimv2:Win32_Service"
+        $createResult = $serviceClass.Create(
+            $ServiceName,
+            $Product,
+            $binaryPath,
+            [uint32]16,
+            [uint32]1,
+            "Automatic",
+            $false,
+            $ServiceAccount,
+            $ServicePassword,
+            $null,
+            $null,
+            $null
+        )
+        Assert-WmiSuccess -Result $createResult -Operation "Win32_Service.Create"
+        Log "Servico criado via Win32_Service.Create."
+    }
+
+    $serviceKey = "HKLM:\SYSTEM\CurrentControlSet\Services\$ServiceName"
+    if (-not (Test-Path -LiteralPath $serviceKey -PathType Container)) {
+        throw "A chave do servico nao foi criada: $serviceKey"
+    }
+    New-ItemProperty `
+        -LiteralPath $serviceKey `
+        -Name "Description" `
+        -Value "Servico de acesso remoto Saurus Remote" `
+        -PropertyType String `
+        -Force | Out-Null
+
+    $verified = Get-WmiManagedService
+    if ($null -eq $verified) {
+        throw "O servico nao foi encontrado depois da criacao/atualizacao."
+    }
+    if (-not $verified.PathName.Contains($Exe) -or -not $verified.PathName.Contains("--service")) {
+        throw "Caminho efetivo inesperado no servico: $($verified.PathName)"
+    }
+    if ($verified.StartName -notmatch '(?i)LocalService$') {
+        throw "Conta efetiva inesperada no servico: $($verified.StartName)"
+    }
+    Log "Servico verificado: PathName=[$($verified.PathName)]; StartName=[$($verified.StartName)]; StartMode=[$($verified.StartMode)]."
+}
+
+function Invoke-ScReliability {
     param(
         [Parameter(Mandatory = $true)][string[]]$Arguments,
         [int[]]$AllowedExitCodes = @(0)
     )
+
     $previous = $ErrorActionPreference
     try {
         $ErrorActionPreference = "Continue"
-        $output = & $ScExe @Arguments 2>&1
+        $output = @(& $ScExe @Arguments 2>&1)
         $code = $LASTEXITCODE
-    } finally {
+    }
+    finally {
         $ErrorActionPreference = $previous
     }
+
     Log "sc.exe $($Arguments -join ' ') => exit=$code; $((@($output) -join ' ').Trim())"
     if ($AllowedExitCodes -notcontains $code) {
-        throw "sc.exe falhou com codigo ${code}: $($Arguments -join ' ')"
+        throw "sc.exe falhou ao configurar recuperacao. Codigo ${code}: $($Arguments -join ' ')"
     }
 }
 
 function Wait-ServiceRunning([int]$TimeoutSeconds) {
     $limit = (Get-Date).AddSeconds($TimeoutSeconds)
     do {
-        $svc = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
-        if ($svc -and $svc.Status -eq 'Running') { return }
+        $service = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
+        if ($null -ne $service) {
+            try {
+                if ($service.Status -eq [System.ServiceProcess.ServiceControllerStatus]::Running) {
+                    return
+                }
+            }
+            finally {
+                try { $service.Dispose() } catch {}
+            }
+        }
         Start-Sleep -Milliseconds 750
     } while ((Get-Date) -lt $limit)
+
     throw "Timeout aguardando o inicio do servico $ServiceName."
+}
+
+function Write-ServiceDiagnostics {
+    try {
+        $service = Get-WmiManagedService
+        if ($null -eq $service) {
+            Log "Diagnostico do servico: Win32_Service nao encontrado."
+            return
+        }
+        Log "Diagnostico do servico: State=[$($service.State)]; Status=[$($service.Status)]; StartMode=[$($service.StartMode)]; StartName=[$($service.StartName)]; PathName=[$($service.PathName)]; ExitCode=[$($service.ExitCode)]; ServiceSpecificExitCode=[$($service.ServiceSpecificExitCode)]."
+    }
+    catch {
+        Log "Falha ao coletar diagnostico do servico: $($_.Exception.Message)"
+    }
 }
 
 function Set-TomlPreference([string]$Content, [string]$Key, [string]$Value) {
     $pattern = "(?m)^\s*$([Regex]::Escape($Key))\s*=\s*.*$"
     $line = "$Key = $Value"
     if ([Regex]::IsMatch($Content, $pattern)) {
-        $regex = New-Object System.Text.RegularExpressions.Regex($pattern, [System.Text.RegularExpressions.RegexOptions]::Multiline)
+        $regex = New-Object System.Text.RegularExpressions.Regex(
+            $pattern,
+            [System.Text.RegularExpressions.RegexOptions]::Multiline
+        )
         return $regex.Replace($Content, $line, 1)
     }
     if ([string]::IsNullOrWhiteSpace($Content)) { return $line + "`r`n" }
@@ -85,7 +277,8 @@ function Write-DefaultsAndMigrate([string]$ConfigRoot) {
                 if ($updated -ne $content) {
                     [IO.File]::WriteAllText($file.FullName, $updated, $Utf8NoBom)
                 }
-            } catch {
+            }
+            catch {
                 Log "Aviso migrando $($file.FullName): $($_.Exception.Message)"
             }
         }
@@ -111,63 +304,68 @@ function Get-ConfigRoots {
     return $roots | Select-Object -Unique
 }
 
+function Set-FirewallRule {
+    $newRule = Get-Command -Name "New-NetFirewallRule" -ErrorAction SilentlyContinue
+    $removeRule = Get-Command -Name "Remove-NetFirewallRule" -ErrorAction SilentlyContinue
+    $getRule = Get-Command -Name "Get-NetFirewallRule" -ErrorAction SilentlyContinue
+    if ($null -eq $newRule -or $null -eq $removeRule -or $null -eq $getRule) {
+        throw "Os cmdlets de firewall do Windows nao estao disponiveis."
+    }
+
+    Get-NetFirewallRule -DisplayName $Product -ErrorAction SilentlyContinue |
+        Remove-NetFirewallRule -ErrorAction SilentlyContinue
+
+    New-NetFirewallRule `
+        -DisplayName $Product `
+        -Direction Inbound `
+        -Action Allow `
+        -Program $Exe `
+        -Profile Any `
+        -Enabled True `
+        -ErrorAction Stop | Out-Null
+
+    Log "Regra de firewall configurada."
+}
+
 try {
-    Log "=== Inicio da configuracao headless pos-instalacao ==="
+    Rotate-InstallLog
+    Log "=== Inicio da configuracao headless pos-instalacao V3 ==="
     if (-not (Test-Administrator)) { throw "A configuracao requer privilegios administrativos." }
     if (-not (Test-Path -LiteralPath $Exe -PathType Leaf)) { throw "Executavel nao encontrado: $Exe" }
 
+    Stop-ManagedService
     Get-Process -Name "SaurusRemote" -ErrorAction SilentlyContinue |
         Stop-Process -Force -ErrorAction SilentlyContinue
 
-    $binaryPath = '"' + $Exe + '" --service'
-    $existing = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
-    if ($existing) {
-        Invoke-Sc -Arguments @("stop", $ServiceName) -AllowedExitCodes @(0, 1060, 1062)
-        try { $existing.Dispose() } catch {}
-        $existing = $null
-        Invoke-Sc -Arguments @(
-            "config", $ServiceName,
-            "binPath=", $binaryPath,
-            "start=", "auto",
-            "obj=", "NT AUTHORITY\LocalService",
-            "DisplayName=", $Product
-        )
-        Log "Servico existente atualizado sem exclusao/recriacao."
-    } else {
-        Invoke-Sc -Arguments @(
-            "create", $ServiceName,
-            "binPath=", $binaryPath,
-            "start=", "auto",
-            "obj=", "NT AUTHORITY\LocalService",
-            "DisplayName=", $Product
-        )
-        Log "Servico criado."
-    }
-    Invoke-Sc -Arguments @("description", $ServiceName, "Servico de acesso remoto Saurus Remote")
-    Invoke-Sc -Arguments @("failure", $ServiceName, "reset=", "86400", "actions=", "restart/5000/restart/15000/restart/60000")
-    Invoke-Sc -Arguments @("failureflag", $ServiceName, "1")
+    Set-OrCreateManagedService
+
+    Invoke-ScReliability -Arguments @(
+        "failure",
+        $ServiceName,
+        "reset=",
+        "86400",
+        "actions=",
+        "restart/5000/restart/15000/restart/60000"
+    )
+    Invoke-ScReliability -Arguments @("failureflag", $ServiceName, "1")
 
     foreach ($root in Get-ConfigRoots) {
         Write-DefaultsAndMigrate $root
     }
     Log "Preferencias adaptativas e audio desativado aplicados."
 
-    $netsh = Join-Path $env:SystemRoot "System32\netsh.exe"
-    & $netsh advfirewall firewall delete rule name="$Product" | Out-Null
-    & $netsh advfirewall firewall add rule name="$Product" dir=in action=allow program="$Exe" enable=yes profile=any | Out-Null
-    if ($LASTEXITCODE -ne 0) { throw "Falha ao criar regra de firewall." }
+    Set-FirewallRule
 
-    Invoke-Sc -Arguments @("start", $ServiceName)
+    Start-Service -Name $ServiceName -ErrorAction Stop
     Wait-ServiceRunning 45
 
-    # A senha ophd0202 e aplicada pelo motor customizado ao iniciar em modo normal,
-    # servidor e servico. O instalador nao executa o binario grafico em modo CLI,
-    # evitando abertura prematura da janela e travamento do Setup.
     Log "Servico iniciado. A senha fixa sera reforcada pelo motor customizado."
-    Log "=== Configuracao headless concluida com sucesso ==="
+    Log "=== Configuracao headless V3 concluida com sucesso ==="
     exit 0
-} catch {
+}
+catch {
     Log "ERRO: $($_.Exception.Message)"
     Log $_.ScriptStackTrace
+    Write-ServiceDiagnostics
     exit 1
 }
