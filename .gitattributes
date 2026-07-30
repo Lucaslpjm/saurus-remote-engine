@@ -1,1 +1,3 @@
 * text=auto
+# Saurus build validator must remain LF-only on Windows.
+.saurus/tools/validate_kit.py text eol=lf

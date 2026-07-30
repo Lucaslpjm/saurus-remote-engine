@@ -52,7 +52,6 @@ REQUIRED = [
     "scripts/Get-SaurusRemoteDiagnostics.ps1",
     "scripts/Test-InstalledCoexistence.ps1",
     "tools/check_upstream_149.py",
-    "github/build-saurus-remote-windows.yml",
     "samples/SaurusRemoteEngineClient.cs",
     "samples/Install-Engine.ps1",
     "samples/Provisionar-Senha.ps1",
@@ -135,7 +134,20 @@ if 'Replace-LiteralRequired $configPath' not in apply_script or '$adaptiveViewOr
 if r'"view_style"\s*=>\s*self\.get_string' in apply_script:
     error("Regex antigo de escala procura uma chave inexistente no RustDesk 1.4.9.")
 verify_script = text("scripts/Verify-SaurusCustomization.ps1")
-workflow = text("github/build-saurus-remote-windows.yml")
+# SAURUS_REMOTE_REPOSITORY_WORKFLOW_RESOLUTION_V1
+# Quando o validador esta instalado em <repo>/.saurus/tools, o workflow real
+# fica em <repo>/.github/workflows. O segundo caminho preserva compatibilidade
+# com o kit independente antes de ele ser copiado para o fork.
+workflow_candidates = [
+    ROOT.parent / ".github" / "workflows" / "build-saurus-remote-windows.yml",
+    ROOT / "github" / "build-saurus-remote-windows.yml",
+]
+workflow_path = next((candidate for candidate in workflow_candidates if candidate.is_file()), None)
+if workflow_path is None:
+    error("Arquivo obrigatorio ausente: .github/workflows/build-saurus-remote-windows.yml")
+    workflow = ""
+else:
+    workflow = workflow_path.read_text(encoding="utf-8-sig", errors="strict")
 client = text("samples/SaurusRemoteEngineClient.cs")
 local_build = text("scripts/Build-SaurusRemote.ps1")
 
@@ -353,7 +365,9 @@ for marker in [
     if marker not in installer_iss:
         error(f"Diretiva segura de versao ausente no Inno Setup: {marker}")
 installer_preflight = text("installer/Test-SaurusRemoteInstaller.ps1")
-if "SAURUS_REMOTE_NORMALIZE_INSTALLER_LINE_ENDINGS_V2" not in installer_preflight:
+if "SAURUS_REMOTE_INSTALLER_PREFLIGHT_V3" not in installer_preflight:
+    error("Marcador do preflight V3 ausente.")
+if 'ReadAllText($InstallerScript).Replace("`r`n", "`n").Replace("`r", "`n")' not in installer_preflight:
     error("O preflight do instalador nao normaliza CRLF/LF antes das expressoes regulares.")
 for marker in [
     "Compilacao real de preflight do Inno Setup concluida",
@@ -438,5 +452,3 @@ for path in sorted(p for p in ROOT.rglob("*") if p.is_file() and path_is_hashabl
     digest.update(path.read_bytes())
 print("Resultado: APROVADO")
 print(f"Fingerprint do kit: {digest.hexdigest()}")
-
-

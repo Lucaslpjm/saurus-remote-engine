@@ -1,3 +1,8 @@
+## 1.4.9-saurus.3.2.1.4
+
+- Normaliza validate_kit.py para UTF-8 com LF e remove CR tratado como trailing whitespace pelo Git.
+- Mantem a resolucao do workflow real em .github/workflows.
+- Protege o validador com regra eol=lf em .gitattributes.
 ## 1.4.9-saurus.3.2.1.1
 
 - Restaura a UX responsiva e o diagnostico aprovados anteriormente.
