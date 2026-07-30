@@ -93,3 +93,8 @@
 ## 1.4.9-saurus.2.1
 
 - corrige parser PowerShell na inserção C++.
+## saurus.3.2.1.6
+
+- Corrige de forma abrangente todas as referencias a `$home` no PowerShell embutido no workflow.
+- Substitui a variavel reservada por `$desktopHomeContent` sem depender do formato exato da linha.
+- Adiciona validacao para impedir nova colisao com a variavel automatica `$HOME`.
