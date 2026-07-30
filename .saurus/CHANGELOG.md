@@ -128,3 +128,9 @@
 - Alinha o validate_kit.py com a mensagem real do configurador headless V4.
 - Remove o falso negativo na validacao das preferencias adaptativas, audio desativado e servidor Saurus.
 - Mantem o build bloqueado caso o configurador e o validador voltem a divergir.
+## saurus.3.2.3.1
+
+- Alinha Test-SaurusProductionRelease.ps1 e demais consumidores ao pipeline de UX V3.
+- Adiciona deteccao dinamica de divergencia entre o produtor e os validadores da UX.
+- Executa parser PowerShell, sintaxe Python, validate_kit e preflight estatico antes do commit.
+- Impede nova compilacao quando um contrato V1/V2 permanecer em arquivo executavel.

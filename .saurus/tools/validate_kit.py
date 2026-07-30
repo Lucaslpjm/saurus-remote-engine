@@ -468,6 +468,40 @@ if "SAURUS_REMOTE_ENFORCE_SERVER_CONFIG" not in apply_script:
 if "requiresAdministrator = $false" not in workflow:
     error("O manifesto de entrega ainda declara elevacao obrigatoria para o aplicativo.")
 
+# SAURUS_REMOTE_DYNAMIC_UX_CONTRACT_SYNC_V1
+ux_pipeline_source = text("scripts/Apply-SaurusProductionUx.ps1")
+ux_pipeline_matches = re.findall(
+    r"(?m)^\s*#\s*(SAURUS_REMOTE_PRODUCTION_UX_PIPELINE_V\d+)\s*$",
+    ux_pipeline_source,
+)
+if len(ux_pipeline_matches) != 1:
+    error(
+        "O produtor da UX deve declarar exatamente um marcador de pipeline; "
+        f"encontrados: {len(ux_pipeline_matches)}"
+    )
+else:
+    active_ux_pipeline_marker = ux_pipeline_matches[0]
+    ux_contract_consumers = [
+        "installer/Test-SaurusProductionRelease.ps1",
+        "installer/Test-SaurusRemoteInstaller.ps1",
+        "scripts/Test-SaurusProductionContracts.ps1",
+        "tools/validate_kit.py",
+    ]
+    for relative in ux_contract_consumers:
+        candidate = ROOT / relative
+        if not candidate.is_file():
+            continue
+        payload = candidate.read_text(encoding="utf-8-sig", errors="strict")
+        referenced = set(
+            re.findall(r"SAURUS_REMOTE_PRODUCTION_UX_PIPELINE_V\d+", payload)
+        )
+        stale = sorted(item for item in referenced if item != active_ux_pipeline_marker)
+        if stale:
+            error(
+                f"Contrato de UX divergente em {relative}: "
+                f"ativo={active_ux_pipeline_marker}; antigos={', '.join(stale)}"
+            )
+
 print("Saurus Remote customization kit - validacao estatica")
 print(f"Raiz: {ROOT}")
 print(f"Arquivos: {sum(1 for p in ROOT.rglob('*') if p.is_file())}")

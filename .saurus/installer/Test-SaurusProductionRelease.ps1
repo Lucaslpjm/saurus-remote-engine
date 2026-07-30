@@ -49,7 +49,7 @@ if ([regex]::Matches($applyText, 'SAURUS_REMOTE_PRODUCTION_UX_PIPELINE_BEGIN').C
 
 $wrapperText = [IO.File]::ReadAllText($uxWrapper)
 foreach ($required in @(
-    "SAURUS_REMOTE_PRODUCTION_UX_PIPELINE_V2",
+    "SAURUS_REMOTE_PRODUCTION_UX_PIPELINE_V3",
     "repair_saurus_utf8_ui.py",
     "A normalizacao UTF-8 da interface falhou",
     "0x251C",

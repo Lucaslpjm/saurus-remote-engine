@@ -194,7 +194,7 @@ Write-Host "Configuracao do usuario esperada: %APPDATA%\$InternalName"
 Write-Host "O servico e as pastas do RustDesk original nao serao reutilizados."
 # SAURUS_REMOTE_UTF8_ASINVOKER_VERIFY_V1
 Check-FileContains ".saurus\tools\repair_saurus_utf8_ui.py" "MOJIBAKE_MARKERS" "Protecao UTF-8 da interface"
-Check-FileContains ".saurus\scripts\Apply-SaurusProductionUx.ps1" "SAURUS_REMOTE_PRODUCTION_UX_PIPELINE_V2" "Pipeline UTF-8 da interface"
+Check-FileContains ".saurus\scripts\Apply-SaurusProductionUx.ps1" "SAURUS_REMOTE_PRODUCTION_UX_PIPELINE_V3" "Pipeline UTF-8 da interface"
 Check-FileContains ".saurus\installer\SaurusRemote.requireAdministrator.manifest" 'level="asInvoker"' "Aplicativo sem elevacao obrigatoria"
 Check-FileNotContains ".saurus\installer\SaurusRemote.requireAdministrator.manifest" 'level="requireAdministrator"' "Elevacao indevida do aplicativo"
 Check-FileContains ".saurus\installer\SaurusRemote.iss" "runasoriginaluser" "Abertura final como usuario original"
