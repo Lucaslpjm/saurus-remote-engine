@@ -1,3 +1,11 @@
+## 1.4.9-saurus.3.2.3
+
+- Consolida a UX final em um unico pipeline idempotente.
+- Migra o titulo legado "Conectar e acessar sessoes recentes" antes da validacao final.
+- Mantem a validacao estrutural da UX responsiva existente.
+- Impede falso negativo causado por texto residual em codigo nao renderizado.
+- Exige os textos finais: Este dispositivo, Conectar a outro dispositivo e Historico e sessoes recentes.
+- Mantem verificacao de UTF-8 e bloqueio de mojibake.
 ## 1.4.9-saurus.3.2.1.4
 
 - Normaliza validate_kit.py para UTF-8 com LF e remove CR tratado como trailing whitespace pelo Git.

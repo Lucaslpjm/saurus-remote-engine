@@ -388,6 +388,20 @@ for marker in [
 ]:
     if marker not in workflow:
         error(f"Preflight do instalador ausente no workflow: {marker}")
+# SAURUS_REMOTE_PRODUCTION_UX_V3_CONTRACT
+production_ux = text("scripts/Apply-SaurusProductionUx.ps1")
+for marker in [
+    "SAURUS_REMOTE_PRODUCTION_UX_PIPELINE_V3",
+    "SAURUS_REMOTE_LEGACY_CONNECTION_TITLE_MIGRATION_V1",
+    "SAURUS_REMOTE_PRODUCTION_UI_2026_07_V3",
+    "Conectar a outro dispositivo",
+    "HistÃ³rico e sessÃµes recentes",
+]:
+    if marker not in production_ux:
+        error(f"Contrato da UX de producao V3 ausente: {marker}")
+
+if "A interface antiga ainda esta presente depois da migracao" not in production_ux:
+    error("Validacao final contra interface legada nao foi encontrada no pipeline V3.")
 # Valida YAML quando PyYAML estiver disponivel; nao e dependencia do kit.
 try:
     import yaml  # type: ignore
@@ -441,7 +455,7 @@ for json_file in ROOT.rglob("*.json"):
 utf8_repair = text("tools/repair_saurus_utf8_ui.py")
 if "MOJIBAKE_MARKERS" not in utf8_repair or "cp850" not in utf8_repair:
     error("Protecao CP850/UTF-8 da interface ausente.")
-if "SAURUS_REMOTE_PRODUCTION_UX_PIPELINE_V2" not in text("scripts/Apply-SaurusProductionUx.ps1"):
+if "SAURUS_REMOTE_PRODUCTION_UX_PIPELINE_V3" not in text("scripts/Apply-SaurusProductionUx.ps1"):
     error("Pipeline UTF-8 final da interface ausente.")
 if 'level="asInvoker"' not in installer_manifest:
     error("O aplicativo principal deve usar asInvoker.")
