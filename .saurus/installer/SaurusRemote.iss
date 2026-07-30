@@ -47,7 +47,9 @@ VersionInfoVersion=1.4.9.0
 VersionInfoCompany={#AppPublisher}
 VersionInfoDescription=Instalador do Saurus Remote
 VersionInfoProductName={#AppName}
-VersionInfoProductVersion={#ProductVersion}
+; SAURUS_REMOTE_NUMERIC_VERSIONINFO_FIX
+VersionInfoProductVersion=1.4.9.0
+VersionInfoProductTextVersion={#ProductVersion}
 
 [Files]
 Source: "{#SourceRoot}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs

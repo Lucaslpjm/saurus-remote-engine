@@ -1,3 +1,8 @@
+## 1.4.9-saurus.3.1.3
+
+- Corrige VersionInfoProductVersion do Inno Setup para o formato numerico aceito pelo recurso de versao do Windows.
+- Mantem a versao completa Saurus em AppVersion e VersionInfoProductTextVersion.
+
 ## 1.4.9-saurus.3.1.2
 
 - Corrige a aplicação da senha fixa no início normal/portátil sem depender da formatação exata de core_main.rs.
