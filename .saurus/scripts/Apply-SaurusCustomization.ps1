@@ -1263,3 +1263,7 @@ Write-Host "[OK] Manifesto gerado: $manifestPath"
 Write-Host ""
 Write-Host "Customização Saurus aplicada com sucesso." -ForegroundColor Green
 Write-Host "Execute Verify-SaurusCustomization.ps1 antes do build." -ForegroundColor Yellow
+
+# SAURUS_REMOTE_PRODUCTION_UX_PIPELINE_BEGIN
+& (Join-Path $PSScriptRoot "Apply-SaurusProductionUx.ps1") -SourceRoot $Root
+# SAURUS_REMOTE_PRODUCTION_UX_PIPELINE_END

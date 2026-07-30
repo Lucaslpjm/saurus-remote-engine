@@ -94,6 +94,16 @@ try {
     & (Join-Path $PSScriptRoot "Verify-SaurusCustomization.ps1") -SourceRoot $Root
     if ($LASTEXITCODE -ne 0) { throw "A validacao da customizacao falhou." }
 
+    # SAURUS_REMOTE_CLEAN_STALE_FLUTTER_BUILD_V1
+    foreach ($stalePath in @(
+        (Join-Path $Root "flutter\build\windows"),
+        (Join-Path $Root "flutter\.dart_tool\flutter_build")
+    )) {
+        if (Test-Path -LiteralPath $stalePath) {
+            Remove-Item -LiteralPath $stalePath -Recurse -Force
+        }
+    }
+    & (Join-Path $PSScriptRoot "Apply-SaurusProductionUx.ps1") -SourceRoot $Root -VerifyOnly
     $buildArgs = @(".\build.py", "--portable", "--flutter", "--skip-portable-pack")
     if (-not $WithoutHwCodec) { $buildArgs += "--hwcodec" }
     if (-not $WithoutVram) { $buildArgs += "--vram" }

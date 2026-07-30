@@ -87,7 +87,10 @@ Check-FileContains "flutter\lib\common.dart" 'static const Color accent = Color(
 Check-FileContains "flutter\lib\common.dart" 'static const Color canvasColor = Color(0xFFF5F6F8);' "Fundo claro Saurus"
 Check-FileContains "flutter\lib\common.dart" 'SAURUS_REMOTE_FIXED_LIGHT_THEME' "Tema claro fixo"
 Check-FileContains "flutter\lib\desktop\pages\desktop_home_page.dart" 'Widget _buildSaurusShell(BuildContext context)' "Dashboard claro Saurus"
-Check-FileContains "flutter\lib\desktop\pages\desktop_home_page.dart" 'Conectar e acessar sessões recentes' "Painel de conexões Saurus"
+Check-FileContains "flutter\lib\desktop\pages\desktop_home_page.dart" "SAURUS_REMOTE_PRODUCTION_UI_2026_07" "Marcador da UI final de producao"
+Check-FileContains "flutter\lib\desktop\pages\desktop_home_page.dart" "Este dispositivo" "Painel deste dispositivo"
+Check-FileContains "flutter\lib\desktop\pages\desktop_home_page.dart" "Conectar" "Painel de conexao"
+Check-FileNotContains "flutter\lib\desktop\pages\desktop_home_page.dart" "Conectar e acessar sessoes recentes" "Painel antigo de conexoes"
 Check-FileContains "flutter\lib\desktop\pages\desktop_setting_page.dart" 'SAURUS_REMOTE_NO_ACCOUNT' "Login e conta ocultos"
 Check-FileContains "flutter\lib\desktop\pages\desktop_setting_page.dart" 'SAURUS_REMOTE_NO_LOGIN_DEPENDENT_OPTIONS' "Opções dependentes de login removidas"
 Check-FileContains "flutter\lib\desktop\widgets\remote_toolbar.dart" 'toolbarItems.add(const _SaurusBrand());' "Marca Saurus na barra remota"
@@ -101,6 +104,9 @@ Check-FileContains "SAURUS_CUSTOMIZATION.json" '"upstreamSelfUpdateEnabled": fal
 $requiredInstallerFiles = @(
     ".saurus\installer\SaurusRemote.iss",
     ".saurus\installer\Configure-SaurusRemote.ps1",
+    ".saurus\installer\Run-SaurusRemotePostInstall.ps1",
+    ".saurus\installer\Test-SaurusRemoteInstaller.ps1",
+    ".saurus\installer\Test-SaurusProductionRelease.ps1",
     ".saurus\installer\Uninstall-SaurusRemote.ps1",
     ".saurus\installer\Set-RequireAdministratorManifest.ps1",
     ".saurus\installer\SaurusRemote.requireAdministrator.manifest",
@@ -117,8 +123,14 @@ foreach ($relative in $requiredInstallerFiles) {
 Check-FileContains ".saurus\installer\SaurusRemote.requireAdministrator.manifest" 'level="requireAdministrator"' "Elevação administrativa permanente"
 Check-FileContains ".saurus\installer\SaurusRemote_default.toml" "view_style = 'adaptive'" "Escala adaptável no instalador"
 Check-FileContains ".saurus\installer\SaurusRemote_default.toml" "disable_audio = 'Y'" "Som desativado no instalador"
-Check-FileContains ".saurus\installer\Configure-SaurusRemote.ps1" '--password-stdin' "Provisionamento real da senha pelo instalador"
-Check-FileContains ".saurus\installer\Configure-SaurusRemote.ps1" 'allow-logon-screen-password' "Acesso em tela de logon"
+Check-FileContains ".saurus\installer\Configure-SaurusRemote.ps1" "SAURUS_REMOTE_HEADLESS_POSTINSTALL_V2" "Configurador headless"
+Check-FileContains ".saurus\installer\Configure-SaurusRemote.ps1" '"config", $ServiceName' "Atualizacao segura do servico"
+Check-FileContains ".saurus\installer\Configure-SaurusRemote.ps1" "Wait-ServiceRunning 45" "Espera controlada do servico"
+Check-FileNotContains ".saurus\installer\Configure-SaurusRemote.ps1" "--password-stdin" "CLI grafica de senha no instalador"
+Check-FileNotContains ".saurus\installer\Configure-SaurusRemote.ps1" "Start-Process -FilePath `$Exe" "Abertura da UI pelo instalador"
+Check-FileContains ".saurus\installer\Run-SaurusRemotePostInstall.ps1" "TimeoutSeconds = 120" "Watchdog do instalador"
+Check-FileContains ".saurus\installer\Uninstall-SaurusRemote.ps1" "SAURUS_REMOTE_HEADLESS_UNINSTALL_V1" "Desinstalacao headless"
+Check-FileNotContains ".saurus\installer\Uninstall-SaurusRemote.ps1" "--uninstall-service" "CLI grafica na desinstalacao"
 
 $requiredAssets = @(
     "flutter\windows\runner\resources\app_icon.ico",

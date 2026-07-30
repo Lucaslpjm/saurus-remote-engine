@@ -6,7 +6,7 @@ on:
       build_label:
         description: "Identificador da compilacao Saurus"
         required: true
-        default: "saurus.3.1.4.2"
+        default: "saurus.3.2.1.1"
         type: string
       include_remote_printer:
         description: "Incluir driver de impressao remota upstream (desativado por padrao para maximizar coexistencia)"
@@ -49,6 +49,11 @@ jobs:
           choco install innosetup --no-progress -y
           if ($LASTEXITCODE -ne 0) { throw 'Falha ao instalar o Inno Setup para o preflight.' }
 
+      - name: Validate Saurus production kit contracts
+        shell: pwsh
+        run: |
+          python .\.saurus\tools\validate_kit.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Compile installer preflight
         shell: pwsh
         run: |
@@ -121,6 +126,10 @@ jobs:
           & .\.saurus\scripts\Verify-SaurusCustomization.ps1 -SourceRoot $PWD
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
+      - name: Verify final production UX
+        shell: pwsh
+        run: |
+          & .\.saurus\scripts\Apply-SaurusProductionUx.ps1 -SourceRoot $PWD -VerifyOnly
       - name: Restore generated Flutter-Rust bridge
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
@@ -241,6 +250,26 @@ jobs:
             --triplet x64-windows-static \
             --x-install-root="$VCPKG_ROOT/installed"
 
+      - name: Remove stale Flutter Windows output
+        shell: pwsh
+        run: |
+          $paths = @(
+            '.\flutter\build\windows',
+            '.\flutter\.dart_tool\flutter_build'
+          )
+          foreach ($path in $paths) {
+            if (Test-Path -LiteralPath $path) {
+              Remove-Item -LiteralPath $path -Recurse -Force
+              Write-Host "Removido cache antigo: $path"
+            }
+          }
+          $home = Get-Content -LiteralPath .\flutter\lib\desktop\pages\desktop_home_page.dart -Raw
+          if ($home -notmatch 'SAURUS_REMOTE_PRODUCTION_UI_2026_07') {
+            throw 'O marcador da UI final nao esta presente antes do build.'
+          }
+          if ($home -match 'Diagn[oó]stico r[aá]pido|Configura[cç][oõ]es de rede|Conectar e acessar sess[oõ]es recentes') {
+            throw 'A interface antiga ainda esta presente antes do build.'
+          }
       - name: Build customized RustDesk core and Flutter UI
         shell: pwsh
         run: |
@@ -350,6 +379,13 @@ jobs:
             -Destination .\rustdesk\defaults\SaurusRemote_default.toml `
             -Force
 
+      - name: Bundle production UI manifest
+        shell: pwsh
+        run: |
+          if (-not (Test-Path -LiteralPath .\SAURUS_PRODUCTION_UI.json -PathType Leaf)) {
+            throw 'Manifesto da UI de producao nao encontrado.'
+          }
+          Copy-Item -LiteralPath .\SAURUS_PRODUCTION_UI.json -Destination .\rustdesk\production-ui-manifest.json -Force
       - name: Sign folder binaries when certificate is configured
         shell: pwsh
         env:

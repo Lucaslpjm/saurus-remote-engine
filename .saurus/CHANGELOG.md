@@ -1,3 +1,14 @@
+## 1.4.9-saurus.3.2.1.1
+
+- Restaura a UX responsiva e o diagnostico aprovados anteriormente.
+- Remove do dashboard os blocos antigos de diagnostico rapido e configuracoes de rede.
+- Limpa a saida Flutter antes de cada compilacao para impedir binario antigo no Setup.
+- Substitui a configuracao pos-instalacao por fluxo headless, sem abrir a interface.
+- Adiciona watchdog de 120 segundos para impedir travamento permanente do instalador.
+- Reconstroi o preflight por template completo e elimina insercao fragil dentro de param().
+- Atualiza o servico existente com sc config, evitando estado marcado para exclusao.
+- Analisa todos os scripts PowerShell e contratos do workflow antes do commit.
+
 ## 1.4.9-saurus.3.1.4.2
 
 - Corrige a validacao do AppId em arquivos com quebra de linha CRLF.

@@ -59,6 +59,11 @@ REQUIRED = [
     "installer/SaurusRemote.iss",
     "installer/Test-SaurusRemoteInstaller.ps1",
     "installer/Configure-SaurusRemote.ps1",
+    "installer/Test-SaurusProductionRelease.ps1",
+    "installer/Run-SaurusRemotePostInstall.ps1",
+    "tools/verify_saurus_ux_refresh.py",
+    "tools/apply_saurus_ux_refresh.py",
+    "scripts/Apply-SaurusProductionUx.ps1",
     "installer/Uninstall-SaurusRemote.ps1",
     "installer/Set-RequireAdministratorManifest.ps1",
     "installer/SaurusRemote.requireAdministrator.manifest",
@@ -294,29 +299,32 @@ for marker in [
     if marker not in installer_manifest:
         error(f"Manifesto administrativo incompleto: {marker}")
 for marker in [
-    '--password-stdin',
-    'verification-method',
-    'use-permanent-password',
-    'allow-logon-screen-password',
-    'disable-change-permanent-password',
+    'SAURUS_REMOTE_HEADLESS_POSTINSTALL_V2',
+    '"config", $ServiceName',
+    'Wait-ServiceRunning 45',
     'SaurusRemote_default.toml',
-    'Set-ServiceReliability',
-    'Migrate-PeerDefaults',
     'view_style',
     'disable_audio',
-    'Senha permanente confirmada pelo motor',
-    'Senha e politica de autenticacao confirmadas apos reiniciar o servico',
-    'sc.exe config $ServiceName start= auto',
+    'Preferencias adaptativas e audio desativado aplicados',
+    'Servico existente atualizado sem exclusao/recriacao.',
 ]:
     if marker not in installer_config:
-        error(f"Configurador do instalador incompleto: {marker}")
-if "$confirmation -notmatch '(?i)\\bDone\\b|conclu[ií]d|success'" not in installer_config:
-    error("Configurador aceita retorno vazio ao aplicar a senha; confirmacao estrita ausente.")
-if "$updated = Set-TomlPreference $content \"view_style\" \"'adaptive'\"" not in installer_config:
-    error("Migracao de escala adaptavel para pares existentes ausente.")
-if "$updated = Set-TomlPreference $updated \"disable_audio\" \"true\"" not in installer_config:
-    error("Migracao de audio desativado para pares existentes ausente.")
-
+        error(f"Configurador headless do instalador incompleto: {marker}")
+for forbidden in [
+    '--password-stdin',
+    '--install-service',
+    'Start-Process -FilePath $Exe',
+    'Wait-ServiceMissing',
+]:
+    if forbidden in installer_config:
+        error(f"Fluxo grafico ou fragil ainda presente no configurador: {forbidden}")
+if 'Run-SaurusRemotePostInstall.ps1' not in installer_iss or '-TimeoutSeconds 120' not in installer_iss:
+    error("Watchdog headless nao esta ligado ao instalador Inno Setup.")
+uninstall_script = text("installer/Uninstall-SaurusRemote.ps1")
+if 'SAURUS_REMOTE_HEADLESS_UNINSTALL_V1' not in uninstall_script:
+    error("Marcador da desinstalacao headless ausente.")
+if '--uninstall-service' in uninstall_script:
+    error("A desinstalacao ainda chama o executavel grafico.")
 for marker in [
     'PrivilegesRequired=admin',
     'Configure-SaurusRemote.ps1',

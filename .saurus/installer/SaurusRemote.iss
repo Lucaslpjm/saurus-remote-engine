@@ -54,6 +54,7 @@ VersionInfoProductTextVersion={#ProductVersion}
 [Files]
 Source: "{#SourceRoot}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "{#InstallerRoot}\Configure-SaurusRemote.ps1"; DestDir: "{app}\tools"; Flags: ignoreversion
+Source: "{#InstallerRoot}\Run-SaurusRemotePostInstall.ps1"; DestDir: "{app}\tools"; Flags: ignoreversion
 Source: "{#InstallerRoot}\Uninstall-SaurusRemote.ps1"; DestDir: "{app}\tools"; Flags: ignoreversion
 Source: "{#InstallerRoot}\SaurusRemote_default.toml"; DestDir: "{app}\defaults"; Flags: ignoreversion
 
@@ -63,7 +64,6 @@ Name: "{autodesktop}\Saurus Remote"; Filename: "{app}\{#AppExeName}"; WorkingDir
 
 [Run]
 Filename: "{app}\{#AppExeName}"; Description: "Abrir o Saurus Remote"; WorkingDir: "{app}"; Flags: nowait postinstall skipifsilent
-
 [UninstallRun]
 Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ""{app}\tools\Uninstall-SaurusRemote.ps1"" -InstallDir ""{app}"""; Flags: runhidden waituntilterminated; RunOnceId: "SaurusRemoteRemoveService"
 
@@ -81,20 +81,20 @@ procedure CurStepChanged(CurStep: TSetupStep);
 var
   ResultCode: Integer;
   PowerShellExe: String;
-  ConfigureScript: String;
+  WatchdogScript: String;
   Parameters: String;
 begin
   if CurStep <> ssPostInstall then
     Exit;
 
   PowerShellExe := ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe');
-  ConfigureScript := ExpandConstant('{app}\tools\Configure-SaurusRemote.ps1');
+  WatchdogScript := ExpandConstant('{app}\tools\Run-SaurusRemotePostInstall.ps1');
   Parameters := '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' +
-    ConfigureScript + '" -InstallDir "' + ExpandConstant('{app}') + '"';
+    WatchdogScript + '" -InstallDir "' + ExpandConstant('{app}') + '" -TimeoutSeconds 120';
 
-  WizardForm.StatusLabel.Caption := 'Configurando serviço, senha e preferências do Saurus Remote...';
+  WizardForm.StatusLabel.Caption := 'Configurando servico e preferencias do Saurus Remote...';
   if not Exec(PowerShellExe, Parameters, '', SW_HIDE, ewWaitUntilTerminated, ResultCode) then
-    RaiseException('Não foi possível iniciar a configuração final do Saurus Remote.');
+    RaiseException('Nao foi possivel iniciar a configuracao final do Saurus Remote.');
   if ResultCode <> 0 then
-    RaiseException(Format('A configuração final do Saurus Remote falhou (código %d). Consulte o log em %%ProgramData%%\Saurus Software\Saurus Remote\install-config.log.', [ResultCode]));
+    RaiseException(Format('A configuracao final falhou (codigo %d). Consulte os logs em %%ProgramData%%\Saurus Software\Saurus Remote.', [ResultCode]));
 end;
