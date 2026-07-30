@@ -63,7 +63,7 @@ Name: "{autoprograms}\Saurus Remote"; Filename: "{app}\{#AppExeName}"; WorkingDi
 Name: "{autodesktop}\Saurus Remote"; Filename: "{app}\{#AppExeName}"; WorkingDir: "{app}"
 
 [Run]
-Filename: "{app}\{#AppExeName}"; Description: "Abrir o Saurus Remote"; WorkingDir: "{app}"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\{#AppExeName}"; Description: "Abrir o Saurus Remote"; WorkingDir: "{app}"; Flags: nowait postinstall skipifsilent runasoriginaluser
 [UninstallRun]
 Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ""{app}\tools\Uninstall-SaurusRemote.ps1"" -InstallDir ""{app}"""; Flags: runhidden waituntilterminated; RunOnceId: "SaurusRemoteRemoveService"
 

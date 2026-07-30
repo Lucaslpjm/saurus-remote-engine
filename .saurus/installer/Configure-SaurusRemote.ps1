@@ -1,4 +1,4 @@
-# SAURUS_REMOTE_HEADLESS_POSTINSTALL_V3
+# SAURUS_REMOTE_HEADLESS_POSTINSTALL_V4
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)][string]$InstallDir
@@ -11,6 +11,8 @@ $Product = "Saurus Remote"
 $ServiceName = "SaurusRemote"
 $ServiceAccount = "NT AUTHORITY\LocalService"
 $ServicePassword = ""
+$RendezvousServer = "20.195.216.23:443"
+$PublicKey = "OJ7QiUrqNu0wM13vDSp4nmAlDu6hy3n8hTI5Wksl2Tc="
 $InstallDir = [IO.Path]::GetFullPath($InstallDir)
 $Exe = Join-Path $InstallDir "SaurusRemote.exe"
 $ProgramDataDir = Join-Path $env:ProgramData "Saurus Software\Saurus Remote"
@@ -86,7 +88,7 @@ function Get-WmiReturnDescription([int]$Code) {
 
 function Assert-WmiSuccess {
     param(
-        [Parameter(Mandatory = $true)]$Result,
+        [Parameter(Mandatory = $true)][AllowNull()]$Result,
         [Parameter(Mandatory = $true)][string]$Operation
     )
 
@@ -177,6 +179,12 @@ function Set-OrCreateManagedService {
         -Value "Servico de acesso remoto Saurus Remote" `
         -PropertyType String `
         -Force | Out-Null
+    New-ItemProperty `
+        -LiteralPath $serviceKey `
+        -Name "DelayedAutostart" `
+        -Value 1 `
+        -PropertyType DWord `
+        -Force | Out-Null
 
     $verified = Get-WmiManagedService
     if ($null -eq $verified) {
@@ -213,24 +221,37 @@ function Invoke-ScReliability {
     }
 }
 
-function Wait-ServiceRunning([int]$TimeoutSeconds) {
+function Wait-ServiceStable {
+    param(
+        [int]$TimeoutSeconds,
+        [int]$StableSeconds = 8
+    )
+
     $limit = (Get-Date).AddSeconds($TimeoutSeconds)
+    $stableSince = $null
     do {
-        $service = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
-        if ($null -ne $service) {
-            try {
-                if ($service.Status -eq [System.ServiceProcess.ServiceControllerStatus]::Running) {
-                    return
-                }
+        $service = Get-WmiManagedService
+        if ($null -ne $service -and
+            $service.State -eq "Running" -and
+            [uint32]$service.ProcessId -gt 0) {
+            if ($null -eq $stableSince) {
+                $stableSince = Get-Date
             }
-            finally {
-                try { $service.Dispose() } catch {}
+            if (((Get-Date) - $stableSince).TotalSeconds -ge $StableSeconds) {
+                Log "Servico permaneceu estavel por $StableSeconds segundos; PID=$($service.ProcessId)."
+                return
+            }
+        }
+        else {
+            $stableSince = $null
+            if ($null -ne $service -and $service.State -eq "Stopped") {
+                Log "Servico parou durante a validacao; ExitCode=$($service.ExitCode); ServiceSpecificExitCode=$($service.ServiceSpecificExitCode)."
             }
         }
         Start-Sleep -Milliseconds 750
     } while ((Get-Date) -lt $limit)
 
-    throw "Timeout aguardando o inicio do servico $ServiceName."
+    throw "O servico nao permaneceu em execucao de forma estavel dentro de $TimeoutSeconds segundos."
 }
 
 function Write-ServiceDiagnostics {
@@ -247,33 +268,68 @@ function Write-ServiceDiagnostics {
     }
 }
 
-function Set-TomlPreference([string]$Content, [string]$Key, [string]$Value) {
+function Set-TomlRootPreference([string]$Content, [string]$Key, [string]$Value) {
     $pattern = "(?m)^\s*$([Regex]::Escape($Key))\s*=\s*.*$"
     $line = "$Key = $Value"
     if ([Regex]::IsMatch($Content, $pattern)) {
-        $regex = New-Object System.Text.RegularExpressions.Regex(
-            $pattern,
-            [System.Text.RegularExpressions.RegexOptions]::Multiline
-        )
-        return $regex.Replace($Content, $line, 1)
+        return [Regex]::Replace($Content, $pattern, $line, 1)
+    }
+
+    $sectionMatch = [Regex]::Match($Content, '(?m)^\s*\[[^\]]+\]\s*$')
+    if ($sectionMatch.Success) {
+        return $Content.Insert($sectionMatch.Index, $line + "`r`n")
     }
     if ([string]::IsNullOrWhiteSpace($Content)) { return $line + "`r`n" }
     return $line + "`r`n" + $Content.TrimStart([char[]]@("`r", "`n"))
 }
 
+function Set-TomlOptionPreference([string]$Content, [string]$Key, [string]$Value) {
+    $pattern = "(?m)^\s*$([Regex]::Escape($Key))\s*=\s*.*$"
+    $line = "$Key = $Value"
+    if ([Regex]::IsMatch($Content, $pattern)) {
+        return [Regex]::Replace($Content, $pattern, $line, 1)
+    }
+
+    $optionsPattern = '(?m)^\s*\[options\]\s*$'
+    $optionsMatch = [Regex]::Match($Content, $optionsPattern)
+    if ($optionsMatch.Success) {
+        $insertAt = $optionsMatch.Index + $optionsMatch.Length
+        return $Content.Insert($insertAt, "`r`n" + $line)
+    }
+
+    $trimmed = $Content.TrimEnd([char[]]@("`r", "`n"))
+    if ($trimmed.Length -gt 0) { $trimmed += "`r`n`r`n" }
+    return $trimmed + "[options]`r`n" + $line + "`r`n"
+}
+
 function Write-DefaultsAndMigrate([string]$ConfigRoot) {
     New-Item -ItemType Directory -Path $ConfigRoot -Force | Out-Null
+
     $defaultPath = Join-Path $ConfigRoot "SaurusRemote_default.toml"
     $defaultContent = "[options]`r`nview_style = 'adaptive'`r`ndisable_audio = 'Y'`r`n"
     [IO.File]::WriteAllText($defaultPath, $defaultContent, $Utf8NoBom)
+
+    $networkPath = Join-Path $ConfigRoot "SaurusRemote2.toml"
+    $networkContent = if (Test-Path -LiteralPath $networkPath -PathType Leaf) {
+        [IO.File]::ReadAllText($networkPath)
+    }
+    else {
+        ""
+    }
+    $networkContent = Set-TomlRootPreference $networkContent "rendezvous_server" ("'" + $RendezvousServer + "'")
+    $networkContent = Set-TomlOptionPreference $networkContent "custom-rendezvous-server" ("'" + $RendezvousServer + "'")
+    $networkContent = Set-TomlOptionPreference $networkContent "key" ("'" + $PublicKey + "'")
+    $networkContent = Set-TomlOptionPreference $networkContent "relay-server" "''"
+    $networkContent = Set-TomlOptionPreference $networkContent "api-server" "''"
+    [IO.File]::WriteAllText($networkPath, $networkContent, $Utf8NoBom)
 
     $peerRoot = Join-Path $ConfigRoot "peers"
     if (Test-Path -LiteralPath $peerRoot -PathType Container) {
         foreach ($file in Get-ChildItem -LiteralPath $peerRoot -Filter "*.toml" -File -Recurse -ErrorAction SilentlyContinue) {
             try {
                 $content = [IO.File]::ReadAllText($file.FullName)
-                $updated = Set-TomlPreference $content "view_style" "'adaptive'"
-                $updated = Set-TomlPreference $updated "disable_audio" "true"
+                $updated = Set-TomlOptionPreference $content "view_style" "'adaptive'"
+                $updated = Set-TomlOptionPreference $updated "disable_audio" "true"
                 if ($updated -ne $content) {
                     [IO.File]::WriteAllText($file.FullName, $updated, $Utf8NoBom)
                 }
@@ -283,6 +339,8 @@ function Write-DefaultsAndMigrate([string]$ConfigRoot) {
             }
         }
     }
+
+    Log "Configuracao de rede aplicada em $networkPath."
 }
 
 function Get-ConfigRoots {
@@ -329,7 +387,7 @@ function Set-FirewallRule {
 
 try {
     Rotate-InstallLog
-    Log "=== Inicio da configuracao headless pos-instalacao V3 ==="
+    Log "=== Inicio da configuracao headless pos-instalacao V4 ==="
     if (-not (Test-Administrator)) { throw "A configuracao requer privilegios administrativos." }
     if (-not (Test-Path -LiteralPath $Exe -PathType Leaf)) { throw "Executavel nao encontrado: $Exe" }
 
@@ -352,15 +410,15 @@ try {
     foreach ($root in Get-ConfigRoots) {
         Write-DefaultsAndMigrate $root
     }
-    Log "Preferencias adaptativas e audio desativado aplicados."
+    Log "Preferencias adaptativas, audio desativado e servidor Saurus aplicados."
 
     Set-FirewallRule
 
     Start-Service -Name $ServiceName -ErrorAction Stop
-    Wait-ServiceRunning 45
+    Wait-ServiceStable -TimeoutSeconds 45 -StableSeconds 8
 
     Log "Servico iniciado. A senha fixa sera reforcada pelo motor customizado."
-    Log "=== Configuracao headless V3 concluida com sucesso ==="
+    Log "=== Configuracao headless V4 concluida com sucesso ==="
     exit 0
 }
 catch {

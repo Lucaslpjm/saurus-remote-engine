@@ -49,13 +49,13 @@ def main() -> int:
         ("_buildSaurusDashboard", "responsive dashboard"),
         ("constraints.maxWidth < 760 || constraints.maxHeight < 540", "small-screen breakpoint"),
         ("compactNavigation", "compact navigation"),
-        ("Hist├│rico e sess├Áes recentes", "full-width history section"),
+        ("Histórico e sessões recentes", "full-width history section"),
         ("Conectar a outro dispositivo", "separate connection section"),
         ("_buildSaurusDiagnosticsPage", "dedicated diagnostics page"),
         ("_runSaurusDiagnostics", "diagnostics runner"),
         ("Socket.connect", "server port test"),
         ("InternetAddress.lookup", "internet/DNS test"),
-        ("Copiar relat├│rio", "diagnostic report copy"),
+        ("Copiar relatório", "diagnostic report copy"),
         ("kRemoteViewStyleAdaptive", "adaptive scale factory default"),
         ("kOptionDisableAudio", "audio disabled factory default"),
         ("mainGetUserDefaultOption", "read user defaults"),
@@ -75,9 +75,9 @@ def main() -> int:
     end = home.find("  Widget _buildBlock({required Widget child})", start)
     saurus_block = home[start:end] if start >= 0 and end > start else home
     for value, label in [
-        ("Diagn├│stico r├ípido", "quick diagnostics dashboard card"),
+        ("Diagnóstico rápido", "quick diagnostics dashboard card"),
         ("Status do servidor", "server status duplication"),
-        ("Configura├º├Áes de rede", "network button duplication"),
+        ("Configurações de rede", "network button duplication"),
         ("_buildSaurusDiagnosticsCard", "old quick diagnostics method"),
     ]:
         forbid(saurus_block, value, label, errors)

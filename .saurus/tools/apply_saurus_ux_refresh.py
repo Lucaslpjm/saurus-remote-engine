@@ -235,7 +235,7 @@ SAURUS_WIDGETS = r'''  // SAURUS_UX_REFRESH_3_1
           ),
           _buildSaurusNavItem(
             icon: Icons.monitor_heart_outlined,
-            label: 'Diagn├│stico',
+            label: 'Diagnóstico',
             compact: compact,
             selected: _saurusDiagnosticsVisible,
             onTap: () {
@@ -250,7 +250,7 @@ SAURUS_WIDGETS = r'''  // SAURUS_UX_REFRESH_3_1
           ),
           _buildSaurusNavItem(
             icon: Icons.settings_outlined,
-            label: 'Configura├º├Áes',
+            label: 'Configurações',
             compact: compact,
             onTap: DesktopTabPage.onAddSetting,
           ),
@@ -346,7 +346,7 @@ SAURUS_WIDGETS = r'''  // SAURUS_UX_REFRESH_3_1
         children: [
           Expanded(
             child: Text(
-              _saurusDiagnosticsVisible ? 'Diagn├│stico' : 'Saurus Remote',
+              _saurusDiagnosticsVisible ? 'Diagnóstico' : 'Saurus Remote',
               style: const TextStyle(
                 color: _saurusText,
                 fontSize: 24,
@@ -375,8 +375,8 @@ SAURUS_WIDGETS = r'''  // SAURUS_UX_REFRESH_3_1
                   const SizedBox(width: 7),
                   Text(
                     svcStopped.value
-                        ? 'Servi├ºo interrompido'
-                        : 'Servi├ºo em execu├º├úo',
+                        ? 'Serviço interrompido'
+                        : 'Serviço em execução',
                     style: const TextStyle(
                       color: _saurusText,
                       fontSize: 12,
@@ -500,9 +500,9 @@ SAURUS_WIDGETS = r'''  // SAURUS_UX_REFRESH_3_1
   }
 
   Widget _buildSaurusHistoryCard(BuildContext context) {
-    // Compatibilidade do verificador legado: Conectar e acessar sess├Áes recentes.
+    // Compatibilidade do verificador legado: Conectar e acessar sessões recentes.
     return _buildSaurusCard(
-      title: 'Hist├│rico e sess├Áes recentes',
+      title: 'Histórico e sessões recentes',
       icon: Icons.history_outlined,
       padding: EdgeInsets.zero,
       expandChild: true,
@@ -569,26 +569,26 @@ SAURUS_WIDGETS = r'''  // SAURUS_UX_REFRESH_3_1
       final serviceOk = !svcStopped.value;
       results.add(_diagnosticResult(
         status: serviceOk ? 'ok' : 'error',
-        title: 'Servi├ºo Saurus Remote',
+        title: 'Serviço Saurus Remote',
         detail: serviceOk
-            ? 'O servi├ºo est├í em execu├º├úo.'
-            : 'O servi├ºo est├í interrompido.',
+            ? 'O serviço está em execução.'
+            : 'O serviço está interrompido.',
         action: serviceOk
-            ? 'Nenhuma a├º├úo necess├íria.'
-            : 'Inicie o servi├ºo ou execute o aplicativo como administrador.',
+            ? 'Nenhuma ação necessária.'
+            : 'Inicie o serviço ou execute o aplicativo como administrador.',
       ));
 
       final rawId = gFFI.serverModel.serverId.text.trim();
       final idOk = rawId.isNotEmpty && rawId != '-';
       results.add(_diagnosticResult(
         status: idOk ? 'ok' : 'warning',
-        title: 'Identifica├º├úo do dispositivo',
+        title: 'Identificação do dispositivo',
         detail: idOk
             ? 'ID ${_formatSaurusId(rawId)} gerado corretamente.'
-            : 'O dispositivo ainda n├úo recebeu um ID.',
+            : 'O dispositivo ainda não recebeu um ID.',
         action: idOk
-            ? 'Nenhuma a├º├úo necess├íria.'
-            : 'Verifique a rede e aguarde a reconex├úo com o servidor.',
+            ? 'Nenhuma ação necessária.'
+            : 'Verifique a rede e aguarde a reconexão com o servidor.',
       ));
 
       var serverReady = false;
@@ -598,20 +598,20 @@ SAURUS_WIDGETS = r'''  // SAURUS_UX_REFRESH_3_1
         serverReady = response['status_num'] == 1;
         results.add(_diagnosticResult(
           status: serverReady ? 'ok' : 'warning',
-          title: 'Comunica├º├úo com o servidor',
+          title: 'Comunicação com o servidor',
           detail: serverReady
-              ? 'O motor est├í conectado e pronto.'
-              : 'O motor ainda n├úo informou estado pronto.',
+              ? 'O motor está conectado e pronto.'
+              : 'O motor ainda não informou estado pronto.',
           action: serverReady
-              ? 'Nenhuma a├º├úo necess├íria.'
+              ? 'Nenhuma ação necessária.'
               : 'Revise o servidor configurado, a internet e as regras de firewall.',
         ));
       } catch (error) {
         results.add(_diagnosticResult(
           status: 'error',
-          title: 'Comunica├º├úo com o servidor',
-          detail: 'N├úo foi poss├¡vel consultar o estado do motor: $error',
-          action: 'Reinicie o servi├ºo e execute o diagn├│stico novamente.',
+          title: 'Comunicação com o servidor',
+          detail: 'Não foi possível consultar o estado do motor: $error',
+          action: 'Reinicie o serviço e execute o diagnóstico novamente.',
         ));
       }
 
@@ -628,16 +628,16 @@ SAURUS_WIDGETS = r'''  // SAURUS_UX_REFRESH_3_1
         results.add(_diagnosticResult(
           status: 'ok',
           title: 'Servidor e porta $serverPort',
-          detail: 'A conex├úo TCP com $serverEndpoint foi conclu├¡da.',
-          action: 'Nenhuma a├º├úo necess├íria.',
+          detail: 'A conexão TCP com $serverEndpoint foi concluída.',
+          action: 'Nenhuma ação necessária.',
         ));
       } catch (error) {
         results.add(_diagnosticResult(
           status: 'error',
           title: 'Servidor e porta $serverPort',
-          detail: 'A conex├úo TCP com $serverEndpoint falhou: $error',
+          detail: 'A conexão TCP com $serverEndpoint falhou: $error',
           action:
-              'Verifique proxy, antiv├¡rus, firewall e a libera├º├úo de sa├¡da TCP na porta $serverPort.',
+              'Verifique proxy, antivírus, firewall e a liberação de saída TCP na porta $serverPort.',
         ));
       } finally {
         await socket?.close();
@@ -649,33 +649,33 @@ SAURUS_WIDGETS = r'''  // SAURUS_UX_REFRESH_3_1
         final internetOk = addresses.isNotEmpty;
         results.add(_diagnosticResult(
           status: internetOk ? 'ok' : 'warning',
-          title: 'Acesso ├á internet e DNS',
+          title: 'Acesso à internet e DNS',
           detail: internetOk
-              ? 'A resolu├º├úo DNS est├í funcionando.'
-              : 'Nenhum endere├ºo foi retornado pela consulta DNS.',
+              ? 'A resolução DNS está funcionando.'
+              : 'Nenhum endereço foi retornado pela consulta DNS.',
           action: internetOk
-              ? 'Nenhuma a├º├úo necess├íria.'
-              : 'Revise o DNS e a conex├úo com a internet.',
+              ? 'Nenhuma ação necessária.'
+              : 'Revise o DNS e a conexão com a internet.',
         ));
       } catch (error) {
         results.add(_diagnosticResult(
           status: 'warning',
-          title: 'Acesso ├á internet e DNS',
+          title: 'Acesso à internet e DNS',
           detail: 'A consulta DNS falhou ou expirou: $error',
-          action: 'Confira a internet, DNS, proxy e pol├¡ticas da rede.',
+          action: 'Confira a internet, DNS, proxy e políticas da rede.',
         ));
       }
 
       final readyForIncoming = serviceOk && idOk && serverReady;
       results.add(_diagnosticResult(
         status: readyForIncoming ? 'ok' : 'warning',
-        title: 'Disponibilidade para receber conex├Áes',
+        title: 'Disponibilidade para receber conexões',
         detail: readyForIncoming
-            ? 'O dispositivo est├í apto a receber conex├Áes.'
-            : 'Um ou mais requisitos para receber conex├Áes n├úo est├úo prontos.',
+            ? 'O dispositivo está apto a receber conexões.'
+            : 'Um ou mais requisitos para receber conexões não estão prontos.',
         action: readyForIncoming
-            ? 'Nenhuma a├º├úo necess├íria.'
-            : 'Corrija os itens com aten├º├úo ou falha e repita o teste.',
+            ? 'Nenhuma ação necessária.'
+            : 'Corrija os itens com atenção ou falha e repita o teste.',
       ));
 
       var detectedVersion = '1.4.9';
@@ -685,17 +685,17 @@ SAURUS_WIDGETS = r'''  // SAURUS_UX_REFRESH_3_1
       } catch (_) {}
       results.add(_diagnosticResult(
         status: 'ok',
-        title: 'Vers├Áes do aplicativo',
+        title: 'Versões do aplicativo',
         detail:
-            'Saurus Remote $detectedVersion ┬À Motor RustDesk base 1.4.9.',
-        action: 'Informe estas vers├Áes ao suporte quando necess├írio.',
+            'Saurus Remote $detectedVersion · Motor RustDesk base 1.4.9.',
+        action: 'Informe estas versões ao suporte quando necessário.',
       ));
     } catch (error) {
       results.add(_diagnosticResult(
         status: 'error',
-        title: 'Execu├º├úo do diagn├│stico',
-        detail: 'O diagn├│stico foi interrompido por uma falha inesperada: $error',
-        action: 'Reabra o aplicativo e execute o diagn├│stico novamente.',
+        title: 'Execução do diagnóstico',
+        detail: 'O diagnóstico foi interrompido por uma falha inesperada: $error',
+        action: 'Reabra o aplicativo e execute o diagnóstico novamente.',
       ));
     } finally {
       if (mounted) {
@@ -717,7 +717,7 @@ SAURUS_WIDGETS = r'''  // SAURUS_UX_REFRESH_3_1
   Future<void> _copySaurusDiagnosticReport() async {
     if (_saurusDiagnosticResults.isEmpty) return;
     final buffer = StringBuffer()
-      ..writeln('SAURUS REMOTE - RELAT├ôRIO DE DIAGN├ôSTICO')
+      ..writeln('SAURUS REMOTE - RELATÓRIO DE DIAGNÓSTICO')
       ..writeln(
         'Executado em: ${_saurusLastDiagnosticAt == null ? '-' : _formatSaurusDateTime(_saurusLastDiagnosticAt!)}',
       )
@@ -727,7 +727,7 @@ SAURUS_WIDGETS = r'''  // SAURUS_UX_REFRESH_3_1
       buffer
         ..writeln('[${(item['status'] as String).toUpperCase()}] ${item['title']}')
         ..writeln('Resultado: ${item['detail']}')
-        ..writeln('A├º├úo: ${item['action']}')
+        ..writeln('Ação: ${item['action']}')
         ..writeln();
     }
     await Clipboard.setData(ClipboardData(text: buffer.toString()));
@@ -763,7 +763,7 @@ SAURUS_WIDGETS = r'''  // SAURUS_UX_REFRESH_3_1
       case 'error':
         return 'Falha';
       default:
-        return 'Aten├º├úo';
+        return 'Atenção';
     }
   }
 
@@ -776,7 +776,7 @@ SAURUS_WIDGETS = r'''  // SAURUS_UX_REFRESH_3_1
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           _buildSaurusCard(
-            title: 'Teste e diagn├│stico do Saurus Remote',
+            title: 'Teste e diagnóstico do Saurus Remote',
             icon: Icons.monitor_heart_outlined,
             child: Wrap(
               spacing: 10,
@@ -797,7 +797,7 @@ SAURUS_WIDGETS = r'''  // SAURUS_UX_REFRESH_3_1
                   label: Text(
                     _saurusDiagnosticsRunning
                         ? 'Executando testes...'
-                        : 'Executar diagn├│stico',
+                        : 'Executar diagnóstico',
                   ),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: _saurusGold,
@@ -809,18 +809,18 @@ SAURUS_WIDGETS = r'''  // SAURUS_UX_REFRESH_3_1
                       ? null
                       : () => unawaited(_copySaurusDiagnosticReport()),
                   icon: const Icon(Icons.copy_outlined),
-                  label: const Text('Copiar relat├│rio'),
+                  label: const Text('Copiar relatório'),
                 ),
                 OutlinedButton.icon(
                   onPressed: () => DesktopSettingPage.switch2page(
                     SettingsTabKey.network,
                   ),
                   icon: const Icon(Icons.settings_ethernet_outlined),
-                  label: const Text('Abrir configura├º├Áes de rede'),
+                  label: const Text('Abrir configurações de rede'),
                 ),
                 if (_saurusLastDiagnosticAt != null)
                   Text(
-                    '├Ültima verifica├º├úo: ${_formatSaurusDateTime(_saurusLastDiagnosticAt!)}',
+                    'Última verificação: ${_formatSaurusDateTime(_saurusLastDiagnosticAt!)}',
                     style: const TextStyle(
                       color: _saurusMuted,
                       fontSize: 12,
@@ -834,7 +834,7 @@ SAURUS_WIDGETS = r'''  // SAURUS_UX_REFRESH_3_1
             child: _saurusDiagnosticResults.isEmpty
                 ? const Center(
                     child: Text(
-                      'Execute o diagn├│stico para verificar servi├ºo, servidor, rede e disponibilidade.',
+                      'Execute o diagnóstico para verificar serviço, servidor, rede e disponibilidade.',
                       textAlign: TextAlign.center,
                       style: TextStyle(color: _saurusMuted),
                     ),
@@ -906,7 +906,7 @@ SAURUS_WIDGETS = r'''  // SAURUS_UX_REFRESH_3_1
                                   ),
                                   const SizedBox(height: 5),
                                   Text(
-                                    'A├º├úo sugerida: ${item['action']}',
+                                    'Ação sugerida: ${item['action']}',
                                     style: const TextStyle(
                                       color: _saurusMuted,
                                       fontSize: 12,
@@ -1005,7 +1005,7 @@ SAURUS_WIDGETS = r'''  // SAURUS_UX_REFRESH_3_1
           Icon(Icons.shield_outlined, color: _saurusSuccess, size: 15),
           SizedBox(width: 6),
           Text(
-            'Conex├úo segura',
+            'Conexão segura',
             style: TextStyle(color: _saurusMuted, fontSize: 11),
           ),
         ],

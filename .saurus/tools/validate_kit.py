@@ -61,6 +61,7 @@ REQUIRED = [
     "installer/Test-SaurusProductionRelease.ps1",
     "installer/Run-SaurusRemotePostInstall.ps1",
     "tools/verify_saurus_ux_refresh.py",
+    "tools/repair_saurus_utf8_ui.py",
     "tools/apply_saurus_ux_refresh.py",
     "scripts/Apply-SaurusProductionUx.ps1",
     "installer/Uninstall-SaurusRemote.ps1",
@@ -240,7 +241,7 @@ for marker in [
     "SHA256SUMS.txt",
     "Build definitive Saurus Remote installer",
     "SaurusRemote.iss",
-    "requiresAdministrator = $true",
+    "requiresAdministrator = $false",
     "definitiveInstallerIncluded = $true",
     "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
 ]:
@@ -305,16 +306,16 @@ installer_config = text("installer/Configure-SaurusRemote.ps1")
 installer_iss = text("installer/SaurusRemote.iss")
 default_toml = text("installer/SaurusRemote_default.toml")
 for marker in [
-    'level="requireAdministrator"',
+    'level="asInvoker"',
     'processorArchitecture="amd64"',
 ]:
     if marker not in installer_manifest:
         error(f"Manifesto administrativo incompleto: {marker}")
 for marker in [
-    'SAURUS_REMOTE_HEADLESS_POSTINSTALL_V3',
+    'SAURUS_REMOTE_HEADLESS_POSTINSTALL_V4',
     'Win32_Service.Create',
     'Win32_Service.Change',
-    'Wait-ServiceRunning 45',
+    'Wait-ServiceStable -TimeoutSeconds 45 -StableSeconds 8',
     'SaurusRemote_default.toml',
     'view_style',
     'disable_audio',
@@ -434,6 +435,23 @@ for json_file in ROOT.rglob("*.json"):
         json.loads(json_file.read_text(encoding="utf-8-sig"))
     except Exception as exc:
         error(f"JSON invalido em {json_file.relative_to(ROOT)}: {exc}")
+
+# SAURUS_REMOTE_UTF8_ASINVOKER_VALIDATION_V1
+utf8_repair = text("tools/repair_saurus_utf8_ui.py")
+if "MOJIBAKE_MARKERS" not in utf8_repair or "cp850" not in utf8_repair:
+    error("Protecao CP850/UTF-8 da interface ausente.")
+if "SAURUS_REMOTE_PRODUCTION_UX_PIPELINE_V2" not in text("scripts/Apply-SaurusProductionUx.ps1"):
+    error("Pipeline UTF-8 final da interface ausente.")
+if 'level="asInvoker"' not in installer_manifest:
+    error("O aplicativo principal deve usar asInvoker.")
+if 'level="requireAdministrator"' in installer_manifest:
+    error("O aplicativo principal ainda exige elevacao e pode falhar com codigo 740.")
+if "runasoriginaluser" not in installer_iss:
+    error("A abertura final do aplicativo nao retorna ao usuario original.")
+if "SAURUS_REMOTE_ENFORCE_SERVER_CONFIG" not in apply_script:
+    error("O servidor Saurus nao e reforcado em todas as inicializacoes.")
+if "requiresAdministrator = $false" not in workflow:
+    error("O manifesto de entrega ainda declara elevacao obrigatoria para o aplicativo.")
 
 print("Saurus Remote customization kit - validacao estatica")
 print(f"Raiz: {ROOT}")

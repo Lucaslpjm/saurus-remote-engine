@@ -131,11 +131,11 @@ try {
     if (-not (Test-Path -LiteralPath $saurusExe -PathType Leaf)) { throw "SaurusRemote.exe nao encontrado no pacote final." }
     if (-not (Test-Path -LiteralPath (Join-Path $packagePath "librustdesk.dll") -PathType Leaf)) { throw "librustdesk.dll nao encontrada." }
 
-    # O executavel principal sempre solicita elevacao, conforme requisito operacional.
+    # O executavel principal usa asInvoker; a elevacao pertence somente ao instalador e ao servico.
     & (Join-Path $PSScriptRoot "..\installer\Set-RequireAdministratorManifest.ps1") `
         -Executable $saurusExe `
         -Manifest (Join-Path $PSScriptRoot "..\installer\SaurusRemote.requireAdministrator.manifest")
-    if ($LASTEXITCODE -ne 0) { throw "Falha ao aplicar manifesto requireAdministrator." }
+    if ($LASTEXITCODE -ne 0) { throw "Falha ao aplicar manifesto asInvoker." }
 
     $defaultsDir = Join-Path $packagePath "defaults"
     New-Item -ItemType Directory -Path $defaultsDir -Force | Out-Null
@@ -162,10 +162,10 @@ try {
         serviceConfigPath = "%WINDIR%\ServiceProfiles\LocalService\AppData\Roaming\SaurusRemote"
         permanentPasswordEmbedded = $true
         fixedPasswordPolicy = $true
-        passwordProvisioning = "normal/service/server enforcement plus installer stdin verification"
+        passwordProvisioning = "normal/service/server startup enforcement"
         defaultViewStyle = "adaptive"
         defaultDisableAudio = $true
-        requiresAdministrator = $true
+        requiresAdministrator = $false
         definitiveInstallerIncluded = $true
         upstreamSelfUpdateEnabled = $false
         signed = -not [string]::IsNullOrWhiteSpace($SigningCertificateThumbprint)
@@ -204,7 +204,7 @@ try {
         & (Join-Path $PSScriptRoot "..\installer\Set-RequireAdministratorManifest.ps1") `
             -Executable $portablePath `
             -Manifest (Join-Path $PSScriptRoot "..\installer\SaurusRemote.requireAdministrator.manifest")
-        if ($LASTEXITCODE -ne 0) { throw "Falha ao aplicar manifesto ao portatil." }
+        if ($LASTEXITCODE -ne 0) { throw "Falha ao aplicar manifesto asInvoker ao portatil." }
         if ($SigningCertificateThumbprint) {
             $signTool = Find-SignTool
             & $signTool sign /sha1 $SigningCertificateThumbprint /fd SHA256 /tr $TimestampUrl /td SHA256 $portablePath

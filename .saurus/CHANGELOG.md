@@ -106,3 +106,12 @@
 - Adiciona verificacao do PathName, StartName e StartMode depois da configuracao.
 - Rotaciona o log de instalacao para separar tentativas antigas da execucao atual.
 - Mantem instalacao headless, watchdog, preferencias adaptativas e audio desativado.
+## saurus.3.2.2.1
+
+- Repara a corrupcao UTF-8/CP850 da interface e impede novo empacotamento com textos mojibake.
+- Trata linhas vazias durante a verificacao de codificacao, evitando ParameterBindingValidationException no PowerShell 5.1.
+- Remove a elevacao obrigatoria do executavel principal, mantendo elevacao somente no setup e no servico.
+- Abre o aplicativo como o usuario original ao concluir o instalador.
+- Reforca o servidor 20.195.216.23:443 e a chave publica em toda inicializacao.
+- Grava SaurusRemote2.toml nos perfis de usuario e LocalService durante a instalacao.
+- Exige que o servico permaneca estavel antes de concluir o setup.

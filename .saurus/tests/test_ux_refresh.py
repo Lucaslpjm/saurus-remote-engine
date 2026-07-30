@@ -24,7 +24,7 @@ class _DesktopHomePageState {
   Widget _buildSaurusShell(BuildContext context) => Container();
   Widget _buildSaurusDiagnosticsCard(BuildContext context) => Container();
   Widget _buildSaurusDeviceCard(BuildContext context) =>
-      Text('Status do servidor Configura├º├Áes de rede Diagn├│stico r├ípido');
+      Text('Status do servidor Configurações de rede Diagnóstico rápido');
   Widget _buildBlock({required Widget child}) { return child; }
   void initState() {
     super.initState();

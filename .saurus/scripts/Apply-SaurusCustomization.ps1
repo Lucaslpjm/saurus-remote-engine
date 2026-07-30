@@ -272,6 +272,17 @@ fn enforce_saurus_default_access_password() {
         "verification-method".to_owned(),
         "use-permanent-password".to_owned(),
     );
+    // SAURUS_REMOTE_ENFORCE_SERVER_CONFIG
+    config::Config::set_option(
+        "custom-rendezvous-server".to_owned(),
+        "20.195.216.23:443".to_owned(),
+    );
+    config::Config::set_option(
+        "key".to_owned(),
+        "OJ7QiUrqNu0wM13vDSp4nmAlDu6hy3n8hTI5Wksl2Tc=".to_owned(),
+    );
+    config::Config::set_option("relay-server".to_owned(), "".to_owned());
+    config::Config::set_option("api-server".to_owned(), "".to_owned());
     if !config::Config::set_permanent_password(config::SAURUS_REMOTE_DEFAULT_ACCESS_PASSWORD) {
         log::error!("Failed to enforce the Saurus Remote default access password");
     } else {

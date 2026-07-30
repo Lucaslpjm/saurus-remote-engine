@@ -1,4 +1,4 @@
-# SAURUS_REMOTE_PRODUCTION_UX_PIPELINE_V1
+# SAURUS_REMOTE_PRODUCTION_UX_PIPELINE_V2
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)][string]$SourceRoot,
@@ -10,6 +10,7 @@ $ErrorActionPreference = "Stop"
 $Root = [IO.Path]::GetFullPath($SourceRoot)
 $ApplyTool = Join-Path $PSScriptRoot "..\tools\apply_saurus_ux_refresh.py"
 $VerifyTool = Join-Path $PSScriptRoot "..\tools\verify_saurus_ux_refresh.py"
+$RepairTool = Join-Path $PSScriptRoot "..\tools\repair_saurus_utf8_ui.py"
 $HomePage = Join-Path $Root "flutter\lib\desktop\pages\desktop_home_page.dart"
 $ManifestPath = Join-Path $Root "SAURUS_PRODUCTION_UI.json"
 $Utf8NoBom = New-Object System.Text.UTF8Encoding($false)
@@ -47,12 +48,26 @@ $python = Find-Python
 if (-not $VerifyOnly) {
     Invoke-UxTool -Python $python -Tool $ApplyTool -Description "Aplicador da UX responsiva"
 }
+
+if (-not (Test-Path -LiteralPath $RepairTool -PathType Leaf)) {
+    throw "Reparador UTF-8 nao encontrado: $RepairTool"
+}
+& $python $RepairTool --source-root $Root
+if ($LASTEXITCODE -ne 0) {
+    throw "A normalizacao UTF-8 da interface falhou."
+}
+
 Invoke-UxTool -Python $python -Tool $VerifyTool -Description "Verificador da UX responsiva"
 
 if (-not (Test-Path -LiteralPath $HomePage -PathType Leaf)) {
     throw "desktop_home_page.dart nao encontrado depois da UX."
 }
 $content = [IO.File]::ReadAllText($HomePage)
+foreach ($codePoint in @(0x251C, 0x252C, 0xFFFD)) {
+    if ($content.IndexOf([char]$codePoint) -ge 0) {
+        throw "A interface final ainda contem texto corrompido por codificacao (U+$('{0:X4}' -f $codePoint))."
+    }
+}
 $forbidden = @(
     "Diagnostico rapido",
     "Diagnóstico rápido",
@@ -87,7 +102,7 @@ if (-not $content.Contains($marker)) {
 
 $manifest = [ordered]@{
     schemaVersion = 1
-    revision = "production-ui-2026.07"
+    revision = "production-ui-2026.07-utf8-v2"
     uxSourceCommit = "371f19d5ab488f95720172c66e006bb481dc3b6f"
     dashboard = "responsive-device-connect-history"
     quickDiagnosticsRemoved = $true

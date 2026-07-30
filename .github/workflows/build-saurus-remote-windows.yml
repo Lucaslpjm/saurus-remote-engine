@@ -6,7 +6,7 @@ on:
       build_label:
         description: "Identificador da compilacao Saurus"
         required: true
-        default: "saurus.3.2.1.7"
+        default: "saurus.3.2.2.1"
         type: string
       include_remote_printer:
         description: "Incluir driver de impressao remota upstream (desativado por padrao para maximizar coexistencia)"
@@ -366,7 +366,7 @@ jobs:
             throw 'Foi encontrado um segundo executavel RustDesk no pacote.'
           }
 
-      - name: Apply administrator manifest and bundle operational defaults
+      - name: Apply application manifest and bundle operational defaults
         shell: pwsh
         run: |
           & .\.saurus\installer\Set-RequireAdministratorManifest.ps1 `
@@ -539,10 +539,11 @@ jobs:
             rendezvousServer = '20.195.216.23:443'
             permanentPasswordEmbedded = $true
             fixedPasswordPolicy = $true
-            passwordProvisioning = 'normal/service/server enforcement plus installer stdin verification'
+            passwordProvisioning = 'normal/service/server startup enforcement'
             defaultViewStyle = 'adaptive'
             defaultDisableAudio = $true
-            requiresAdministrator = $true
+            requiresAdministrator = $false
+            applicationExecutionLevel = 'asInvoker'
             definitiveInstallerIncluded = $true
             upstreamSelfUpdateEnabled = $false
             authenticodeRequested = [bool]::Parse($env:SIGNING_CONFIGURED)
