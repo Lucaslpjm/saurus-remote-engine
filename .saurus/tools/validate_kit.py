@@ -56,10 +56,17 @@ REQUIRED = [
     "samples/SaurusRemoteEngineClient.cs",
     "samples/Install-Engine.ps1",
     "samples/Provisionar-Senha.ps1",
+    "installer/SaurusRemote.iss",
+    "installer/Configure-SaurusRemote.ps1",
+    "installer/Uninstall-SaurusRemote.ps1",
+    "installer/Set-RequireAdministratorManifest.ps1",
+    "installer/SaurusRemote.requireAdministrator.manifest",
+    "installer/SaurusRemote_default.toml",
     "docs/REVISAO-CODIGO-LEGADO.md",
     "docs/ARQUITETURA.md",
     "docs/INTEGRACAO-LAUNCHER.md",
     "docs/BUILD-GITHUB-ACTIONS.md",
+    "docs/INSTALADOR-DEFINITIVO.md",
     "docs/SEGURANCA-E-LICENCA.md",
     "docs/VALIDACAO-UPSTREAM-1.4.9.md",
     "LICENSES/RustDesk-AGPL-3.0-NOTICE.txt",
@@ -134,6 +141,9 @@ for marker in [
     "Widget _buildSaurusShell(BuildContext context)",
     "SAURUS_REMOTE_NO_ACCOUNT",
     "SAURUS_REMOTE_NO_LOGIN_DEPENDENT_OPTIONS",
+    "SAURUS_REMOTE_DEFAULT_ADAPTIVE_VIEW",
+    "SAURUS_REMOTE_DEFAULT_DISABLE_AUDIO",
+    "SAURUS_REMOTE_NORMAL_START_PASSWORD_ENFORCEMENT",
 ]:
     if marker not in apply_script:
         error(f"Marcador de customizacao ausente: {marker}")
@@ -173,6 +183,18 @@ for value in expected_versions:
     if value not in workflow:
         error(f"Versao/pino ausente no workflow: {value}")
 
+# Regressao: o SDK Flutter modificado nao pode ser salvo no cache, e o patch deve ser idempotente.
+if "cache: true" in workflow:
+    error("O cache do SDK Flutter nao deve ser habilitado quando o SDK e alterado por patch.")
+for marker in [
+    "git apply --check",
+    "git apply --reverse --check",
+    "Patch Flutter ja estava aplicado",
+    "bool _enableFilter = false;",
+]:
+    if marker not in workflow:
+        error(f"Protecao idempotente do patch Flutter ausente: {marker}")
+
 for marker in [
     "check_upstream_149.py",
     "include_remote_printer",
@@ -185,6 +207,10 @@ for marker in [
     "SAURUS_USBMMIDD_SHA256",
     "engine-manifest.json",
     "SHA256SUMS.txt",
+    "Build definitive Saurus Remote installer",
+    "SaurusRemote.iss",
+    "requiresAdministrator = $true",
+    "definitiveInstallerIncluded = $true",
     "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
 ]:
     if marker not in workflow:
@@ -196,6 +222,9 @@ for marker in [
     'check_upstream_149.py',
     'Apply-SaurusCustomization.ps1',
     'Verify-SaurusCustomization.ps1',
+    'Set-RequireAdministratorManifest.ps1',
+    'SaurusRemote.iss',
+    'SaurusRemote-$ProductVersion-Setup.exe',
 ]:
     if marker not in local_build:
         error(f"Etapa obrigatoria ausente no build local: {marker}")
@@ -239,6 +268,55 @@ for marker in [
 ]:
     if marker not in client:
         error(f"Protecao ausente no cliente C#: {marker}")
+
+installer_manifest = text("installer/SaurusRemote.requireAdministrator.manifest")
+installer_config = text("installer/Configure-SaurusRemote.ps1")
+installer_iss = text("installer/SaurusRemote.iss")
+default_toml = text("installer/SaurusRemote_default.toml")
+for marker in [
+    'level="requireAdministrator"',
+    'processorArchitecture="amd64"',
+]:
+    if marker not in installer_manifest:
+        error(f"Manifesto administrativo incompleto: {marker}")
+for marker in [
+    '--password-stdin',
+    'verification-method',
+    'use-permanent-password',
+    'allow-logon-screen-password',
+    'disable-change-permanent-password',
+    'SaurusRemote_default.toml',
+    'Set-ServiceReliability',
+    'Migrate-PeerDefaults',
+    'view_style',
+    'disable_audio',
+    'Senha permanente confirmada pelo motor',
+    'Senha e politica de autenticacao confirmadas apos reiniciar o servico',
+    'sc.exe config $ServiceName start= auto',
+]:
+    if marker not in installer_config:
+        error(f"Configurador do instalador incompleto: {marker}")
+if "$confirmation -notmatch '(?i)\\bDone\\b|conclu[ií]d|success'" not in installer_config:
+    error("Configurador aceita retorno vazio ao aplicar a senha; confirmacao estrita ausente.")
+if "$updated = Set-TomlPreference $content \"view_style\" \"'adaptive'\"" not in installer_config:
+    error("Migracao de escala adaptavel para pares existentes ausente.")
+if "$updated = Set-TomlPreference $updated \"disable_audio\" \"true\"" not in installer_config:
+    error("Migracao de audio desativado para pares existentes ausente.")
+
+for marker in [
+    'PrivilegesRequired=admin',
+    'Configure-SaurusRemote.ps1',
+    'Uninstall-SaurusRemote.ps1',
+    'SaurusRemote-{#ProductVersion}-Setup',
+    'procedure CurStepChanged(CurStep: TSetupStep)',
+    'if ResultCode <> 0 then',
+    'RaiseException',
+]:
+    if marker not in installer_iss:
+        error(f"Script Inno Setup incompleto: {marker}")
+for marker in ["view_style = 'adaptive'", "disable_audio = 'Y'"]:
+    if marker not in default_toml:
+        error(f"Preferencia operacional ausente: {marker}")
 
 # Valida YAML quando PyYAML estiver disponivel; nao e dependencia do kit.
 try:

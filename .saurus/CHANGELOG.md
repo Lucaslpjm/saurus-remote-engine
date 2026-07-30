@@ -10,57 +10,43 @@
 - Separa os modos de conexão e histórico da `ConnectionPage` sem duplicar controladores globais.
 - Otimiza o workflow com concorrência, checkout raso, cache somente de dependências pub, validação e formatação.
 
-## 1.4.9-saurus.3.0 — interface clara sem login e sem mapa
+## 1.4.9-saurus.3.1.0 — instalador definitivo e correções operacionais
 
-- nova tela principal clara inspirada no design system Saurus;
-- sem perfil de usuário, login, logout ou mapa;
-- painel funcional com ID, senha, status, diagnóstico e conexões recentes;
-- tema claro fixo;
-- aba de conta e opções dependentes de login ocultadas;
-- mantém senha operacional `ophd0202`, servidor Saurus e isolamento do RustDesk original.
+- adiciona `SaurusRemote-<versão>-Setup.exe` construído com Inno Setup;
+- instala em `%ProgramFiles%\Saurus Software\Saurus Remote`;
+- registra e inicia o serviço `SaurusRemote`;
+- configura início automático e ações de recuperação do serviço;
+- aplica a senha `ophd0202` no fluxo normal, portátil, serviço e servidor;
+- reaplica e valida a senha por `--password-stdin` durante a instalação e novamente depois do reinício do serviço;
+- define `verification-method=use-permanent-password` e `approve-mode=password`;
+- habilita acesso na tela de logon;
+- define escala `adaptive` no núcleo e no arquivo default;
+- define `disable_audio='Y'` e o valor padrão de `PeerConfig` como verdadeiro;
+- migra `view_style='adaptive'` e `disable_audio=true` nos pares já salvos de todos os perfis encontrados;
+- incorpora manifesto `requireAdministrator` no motor e no portátil;
+- cria regra de firewall, atalhos e desinstalação do serviço;
+- preserva ID e configurações em atualização;
+- adiciona log de instalação em `%ProgramData%\Saurus Software\Saurus Remote`.
 
-## 1.4.9-saurus.2.3 — correção de CRLF no `pubspec.yaml`
+## 1.4.9-saurus.3.0.1
 
-- Corrige o falso negativo na alteração da descrição Flutter em runners Windows.
-- Substitui o regex ancorado por uma troca literal validada pelo preflight da tag 1.4.9.
-- Funciona com arquivos em LF ou CRLF sem alterar a estrutura YAML.
-- Mantém as correções anteriores de parser PowerShell e indentação do `lazy_static!`.
+- corrige aplicação idempotente do patch Flutter 3.24.5;
+- remove cache do SDK Flutter modificado.
 
-## 1.4.9-saurus.2.2 — correção da constante de servidor no `lazy_static`
+## 1.4.9-saurus.3.0
 
-- Corrige o patch de `PROD_RENDEZVOUS_SERVER` no `libs/hbb_common/src/config.rs`.
-- Preserva os quatro espaços de indentação exigidos pelo bloco `lazy_static!`.
-- Substitui o regex frágil por troca literal validada contra a estrutura da tag 1.4.9.
-- Mantém a correção anterior do parser PowerShell na inserção C++.
+- interface clara Saurus;
+- remove login, conta e mapa;
+- mantém dashboard, conexões, histórico, diagnóstico e configurações.
 
-## 1.4.9-saurus.2.1 — correção do parser PowerShell
+## 1.4.9-saurus.2.3
 
-- corrigido o escape das aspas na linha que insere `app_name = L"Saurus Remote";` em `flutter/windows/runner/main.cpp`;
-- eliminado o `ParserError` que ocorria antes da aplicação das customizações;
-- adicionada validação de regressão para impedir que o escape inválido volte ao kit.
+- corrige CRLF no `pubspec.yaml`.
 
-## 1.4.9-saurus.1 — kit inicial
+## 1.4.9-saurus.2.2
 
-- isolamento de nome interno, serviço, instalação, configuração e IPC;
-- servidor e chave Saurus como padrão;
-- tema e ícones Saurus;
-- marca Saurus na barra da sessão remota;
-- metadados Windows próprios;
-- `--password-stdin` para provisionamento sem segredo na linha de comando;
-- remoção de senha universal embutida;
-- desativação da atualização upstream direta;
-- workflow Windows x64 baseado nas versões fixadas pelo build oficial 1.4.9;
-- assinatura Authenticode opcional;
-- manifesto e checksums do pacote;
-- scripts de diagnóstico e coexistência;
-- relatório de auditoria do launcher decompilado.
+- corrige a constante de servidor dentro de `lazy_static!`.
 
-## 1.4.9-saurus.1 — endurecimento de coexistência
+## 1.4.9-saurus.2.1
 
-- chave Inno Setup exclusiva para impedir herança do `InstallLocation` do RustDesk;
-- staging público de cliente customizado isolado;
-- limpeza de temporários limitada ao prefixo do Saurus Remote;
-- broker e janelas do modo privacidade renomeados;
-- preflight automático dos pontos de patch do upstream 1.4.9;
-- impressão remota desativada por padrão no workflow;
-- compatibilidade do cliente de referência corrigida para .NET Framework 4.7.2.
+- corrige parser PowerShell na inserção C++.

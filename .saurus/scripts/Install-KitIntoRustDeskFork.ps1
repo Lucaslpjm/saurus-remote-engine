@@ -47,7 +47,7 @@ if (Test-Path -LiteralPath $destination) {
 }
 New-Item -ItemType Directory -Path $destination -Force | Out-Null
 
-foreach ($folder in @("branding", "scripts", "tools", "docs", "samples", "LICENSES")) {
+foreach ($folder in @("branding", "scripts", "tools", "docs", "samples", "installer", "LICENSES")) {
     $source = Join-Path $kitRoot $folder
     if (Test-Path -LiteralPath $source -PathType Container) {
         Copy-Item -LiteralPath $source -Destination (Join-Path $destination $folder) -Recurse -Force

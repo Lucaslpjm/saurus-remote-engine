@@ -1,0 +1,4 @@
+# Preferencias padrao do Saurus Remote para novas conexoes.
+[options]
+view_style = 'adaptive'
+disable_audio = 'Y'

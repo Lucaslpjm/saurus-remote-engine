@@ -3,7 +3,7 @@ param(
     [Parameter(Mandatory = $true)]
     [string]$SourceRoot,
     [string]$OutputRoot = "",
-    [string]$BuildLabel = "saurus.3.1.2",
+    [string]$BuildLabel = "saurus.3.1.0",
     [switch]$ApplyCustomization,
     [switch]$WithoutHwCodec,
     [switch]$WithoutVram,
@@ -86,17 +86,9 @@ try {
 
         & (Join-Path $PSScriptRoot "Apply-SaurusCustomization.ps1") -SourceRoot $Root
         if ($LASTEXITCODE -ne 0) { throw "Falha ao aplicar customizacao." }
-
-        $uxPatch = Join-Path $PSScriptRoot "..\tools\apply_saurus_ux_refresh.py"
-        & $python $uxPatch --source-root $Root
-        if ($LASTEXITCODE -ne 0) { throw "Falha ao aplicar o Saurus UX Refresh 3.1.2." }
     }
     & (Join-Path $PSScriptRoot "Verify-SaurusCustomization.ps1") -SourceRoot $Root
     if ($LASTEXITCODE -ne 0) { throw "A validacao da customizacao falhou." }
-
-    $uxVerify = Join-Path $PSScriptRoot "..\tools\verify_saurus_ux_refresh.py"
-    & $python $uxVerify --source-root $Root
-    if ($LASTEXITCODE -ne 0) { throw "A validacao do Saurus UX Refresh 3.1.2 falhou." }
 
     $buildArgs = @(".\build.py", "--portable", "--flutter", "--skip-portable-pack")
     if (-not $WithoutHwCodec) { $buildArgs += "--hwcodec" }
@@ -125,6 +117,19 @@ try {
     if (-not (Test-Path -LiteralPath $saurusExe -PathType Leaf)) { throw "SaurusRemote.exe nao encontrado no pacote final." }
     if (-not (Test-Path -LiteralPath (Join-Path $packagePath "librustdesk.dll") -PathType Leaf)) { throw "librustdesk.dll nao encontrada." }
 
+    # O executavel principal sempre solicita elevacao, conforme requisito operacional.
+    & (Join-Path $PSScriptRoot "..\installer\Set-RequireAdministratorManifest.ps1") `
+        -Executable $saurusExe `
+        -Manifest (Join-Path $PSScriptRoot "..\installer\SaurusRemote.requireAdministrator.manifest")
+    if ($LASTEXITCODE -ne 0) { throw "Falha ao aplicar manifesto requireAdministrator." }
+
+    $defaultsDir = Join-Path $packagePath "defaults"
+    New-Item -ItemType Directory -Path $defaultsDir -Force | Out-Null
+    Copy-Item `
+        -LiteralPath (Join-Path $PSScriptRoot "..\installer\SaurusRemote_default.toml") `
+        -Destination (Join-Path $defaultsDir "SaurusRemote_default.toml") `
+        -Force
+
     Sign-Files -Directory $packagePath -Thumbprint $SigningCertificateThumbprint
 
     $manifest = [ordered]@{
@@ -143,7 +148,11 @@ try {
         serviceConfigPath = "%WINDIR%\ServiceProfiles\LocalService\AppData\Roaming\SaurusRemote"
         permanentPasswordEmbedded = $true
         fixedPasswordPolicy = $true
-        passwordProvisioning = "engine-enforced on service/server startup; stdin repair supported"
+        passwordProvisioning = "normal/service/server enforcement plus installer stdin verification"
+        defaultViewStyle = "adaptive"
+        defaultDisableAudio = $true
+        requiresAdministrator = $true
+        definitiveInstallerIncluded = $true
         upstreamSelfUpdateEnabled = $false
         signed = -not [string]::IsNullOrWhiteSpace($SigningCertificateThumbprint)
     }
@@ -178,6 +187,10 @@ try {
         if (-not (Test-Path -LiteralPath $packer -PathType Leaf)) { throw "Portable packer nao foi gerado." }
         $portablePath = Join-Path $OutputRoot "SaurusRemote-$ProductVersion-Windows-x64.exe"
         Move-Item $packer $portablePath -Force
+        & (Join-Path $PSScriptRoot "..\installer\Set-RequireAdministratorManifest.ps1") `
+            -Executable $portablePath `
+            -Manifest (Join-Path $PSScriptRoot "..\installer\SaurusRemote.requireAdministrator.manifest")
+        if ($LASTEXITCODE -ne 0) { throw "Falha ao aplicar manifesto ao portatil." }
         if ($SigningCertificateThumbprint) {
             $signTool = Find-SignTool
             & $signTool sign /sha1 $SigningCertificateThumbprint /fd SHA256 /tr $TimestampUrl /td SHA256 $portablePath
@@ -185,8 +198,37 @@ try {
         }
     }
 
+    $setupPath = $null
+    $isccCandidates = @(
+        "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe",
+        "${env:ProgramFiles}\Inno Setup 6\ISCC.exe"
+    )
+    $iscc = $isccCandidates | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } | Select-Object -First 1
+    if ($iscc) {
+        $installerRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot "..\installer"))
+        $brandingRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot "..\branding"))
+        & $iscc `
+            "/DSourceRoot=$packagePath" `
+            "/DOutputDir=$OutputRoot" `
+            "/DProductVersion=$ProductVersion" `
+            "/DInstallerRoot=$installerRoot" `
+            "/DBrandingRoot=$brandingRoot" `
+            (Join-Path $installerRoot "SaurusRemote.iss")
+        if ($LASTEXITCODE -ne 0) { throw "Falha ao compilar o instalador definitivo." }
+        $setupPath = Join-Path $OutputRoot "SaurusRemote-$ProductVersion-Setup.exe"
+        if (-not (Test-Path -LiteralPath $setupPath -PathType Leaf)) { throw "Instalador final nao foi encontrado." }
+        if ($SigningCertificateThumbprint) {
+            $signTool = Find-SignTool
+            & $signTool sign /sha1 $SigningCertificateThumbprint /fd SHA256 /tr $TimestampUrl /td SHA256 $setupPath
+            if ($LASTEXITCODE -ne 0) { throw "Falha ao assinar o instalador definitivo." }
+        }
+    } else {
+        Write-Warning "Inno Setup 6 nao encontrado. ZIP e portatil serao gerados, mas o instalador Setup nao sera criado localmente."
+    }
+
     $hashFiles = @($zipPath)
     if ($portablePath) { $hashFiles += $portablePath }
+    if ($setupPath) { $hashFiles += $setupPath }
     $hashFiles += (Join-Path $packagePath "engine-manifest.json")
     $hashLines = foreach ($file in $hashFiles) {
         $hash = (Get-FileHash $file -Algorithm SHA256).Hash.ToLowerInvariant()
@@ -199,6 +241,7 @@ try {
     Write-Host "Pasta: $packagePath"
     Write-Host "ZIP: $zipPath"
     if ($portablePath) { Write-Host "Portatil: $portablePath" }
+    if ($setupPath) { Write-Host "Instalador: $setupPath" }
 }
 finally {
     Pop-Location

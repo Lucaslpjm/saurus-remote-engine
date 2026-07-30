@@ -170,6 +170,24 @@ Replace-RegexRequired $configPath `
     ('pub const RS_PUB_KEY: &str = "' + $keyEscaped + '";') `
     "Chave pública padrão"
 
+# 2.1. Preferências operacionais padrão para novas sessões.
+# A escala adaptável também é aplicada no núcleo, para funcionar no portátil e antes do instalador.
+$adaptiveViewReplacement = '"view_style" => self.get_string(key, "adaptive", vec!["original"]), // SAURUS_REMOTE_DEFAULT_ADAPTIVE_VIEW'
+Replace-RegexRequired $configPath `
+    '"view_style"\s*=>\s*self\.get_string\(key,\s*"original",\s*vec!\["adaptive"\]\),' `
+    $adaptiveViewReplacement `
+    "Escala adaptável como padrão" `
+    "SAURUS_REMOTE_DEFAULT_ADAPTIVE_VIEW"
+
+# PeerConfig novo deve iniciar com o áudio remoto desativado. O instalador também grava
+# SaurusRemote_default.toml para cobrir atualizações e perfis já existentes.
+$disableAudioReplacement = 'disable_audio: DisableAudio { v: true }, // SAURUS_REMOTE_DEFAULT_DISABLE_AUDIO'
+Replace-RegexRequired $configPath `
+    'disable_audio:\s*Default::default\(\),' `
+    $disableAudioReplacement `
+    "Som remoto desativado como padrão" `
+    "SAURUS_REMOTE_DEFAULT_DISABLE_AUDIO"
+
 $passwordRustEscaped = $DefaultAccessPassword.Replace('\', '\\').Replace('"', '\"')
 $fixedPasswordConstant = 'pub const SAURUS_REMOTE_DEFAULT_ACCESS_PASSWORD: &str = "' + $passwordRustEscaped + '"; // SAURUS_REMOTE_DEFAULT_ACCESS_PASSWORD'
 Insert-BeforeMarkerRequired $configPath `
@@ -293,6 +311,18 @@ Replace-RegexRequired $coreMainPath `
     $serverPasswordEnforcement `
     "Aplicação da senha fixa ao iniciar o servidor" `
     'SAURUS_REMOTE_SERVER_PASSWORD_ENFORCEMENT'
+
+# O fluxo normal/portátil também inicia o servidor, mas não passa por --service ou --server.
+# Sem esta etapa a interface podia exibir a senha Saurus sem que ela tivesse sido persistida.
+$normalStartPasswordEnforcement = @'
+            // SAURUS_REMOTE_NORMAL_START_PASSWORD_ENFORCEMENT
+            enforce_saurus_default_access_password();
+            std::thread::spawn(move || crate::start_server(false, no_server));
+'@
+Replace-LiteralRequired $coreMainPath `
+    '            std::thread::spawn(move || crate::start_server(false, no_server));' `
+    $normalStartPasswordEnforcement `
+    "Aplicação da senha fixa ao iniciar normalmente"
 
 # O comando por stdin continua disponível para reparo sem expor a senha no CommandLine do Windows.
 $passwordStdinReplacement = @'
@@ -1175,7 +1205,7 @@ $manifest = [ordered]@{
     security = [ordered]@{
         permanentPasswordEmbedded = $true
         fixedPasswordPolicy = $true
-        passwordProvisioning = "engine-enforced on service/server startup; stdin repair supported"
+        passwordProvisioning = "engine-enforced on normal/service/server startup; installer stdin verification supported"
         upstreamSelfUpdateEnabled = $false
         updaterOwner = "Saurus Remote launcher/updater"
     }

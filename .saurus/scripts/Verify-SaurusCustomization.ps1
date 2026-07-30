@@ -54,9 +54,12 @@ Check-FileContains "src\flutter_ffi.rs" ("SyncReturn(`"{0}`".to_owned())" -f $Di
 Check-FileContains "src\core_main.rs" "SAURUS_REMOTE_WINDOW_DISPATCH" "Encaminhamento de janela com nome visual"
 Check-FileContains "libs\hbb_common\src\config.rs" 'pub const SAURUS_REMOTE_DEFAULT_ACCESS_PASSWORD: &str = "ophd0202";' "Senha operacional padrão"
 Check-FileContains "libs\hbb_common\src\config.rs" "SAURUS_REMOTE_FIXED_ACCESS_PASSWORD" "Bloqueio de alteração da senha padrão"
+Check-FileContains "libs\hbb_common\src\config.rs" "SAURUS_REMOTE_DEFAULT_ADAPTIVE_VIEW" "Escala adaptável padrão no núcleo"
+Check-FileContains "libs\hbb_common\src\config.rs" "SAURUS_REMOTE_DEFAULT_DISABLE_AUDIO" "Som remoto desativado por padrão no núcleo"
 Check-FileContains "src\core_main.rs" "SAURUS_REMOTE_ENFORCE_DEFAULT_PASSWORD" "Aplicação automática da senha padrão"
 Check-FileContains "src\core_main.rs" "SAURUS_REMOTE_SERVICE_PASSWORD_ENFORCEMENT" "Aplicação da senha no serviço"
 Check-FileContains "src\core_main.rs" "SAURUS_REMOTE_SERVER_PASSWORD_ENFORCEMENT" "Aplicação da senha no servidor"
+Check-FileContains "src\core_main.rs" "SAURUS_REMOTE_NORMAL_START_PASSWORD_ENFORCEMENT" "Aplicação da senha no início normal e portátil"
 Check-FileContains "src\core_main.rs" "SAURUS_REMOTE_PASSWORD_STDIN" "Senha segura via stdin"
 Check-FileContains "src\core_main.rs" "SAURUS_REMOTE_FIXED_PASSWORD_CLI" "CLI restrita à senha operacional padrão"
 Check-FileContains "src\core_main.rs" 'Some("--password-stdin")' "Escopo IPC de senha via stdin"
@@ -94,6 +97,28 @@ Check-FileContains "SAURUS_CUSTOMIZATION.json" '"fixedPasswordPolicy": true' "Po
 Check-FileContains "SAURUS_CUSTOMIZATION.json" ('"installerRegistryKey": "' + $InstallerRegistryKey + '"') "Chave de instalador registrada no manifesto"
 Check-FileContains "SAURUS_CUSTOMIZATION.json" '"privacyBrokerExecutable": "RuntimeBroker_saurusremote.exe"' "Broker registrado no manifesto"
 Check-FileContains "SAURUS_CUSTOMIZATION.json" '"upstreamSelfUpdateEnabled": false' "Atualizador upstream desativado"
+
+$requiredInstallerFiles = @(
+    ".saurus\installer\SaurusRemote.iss",
+    ".saurus\installer\Configure-SaurusRemote.ps1",
+    ".saurus\installer\Uninstall-SaurusRemote.ps1",
+    ".saurus\installer\Set-RequireAdministratorManifest.ps1",
+    ".saurus\installer\SaurusRemote.requireAdministrator.manifest",
+    ".saurus\installer\SaurusRemote_default.toml"
+)
+foreach ($relative in $requiredInstallerFiles) {
+    $path = Join-Path $Root $relative
+    if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
+        $failures.Add("Arquivo do instalador ausente: $relative")
+    } else {
+        Write-Host "[OK] Instalador: $relative"
+    }
+}
+Check-FileContains ".saurus\installer\SaurusRemote.requireAdministrator.manifest" 'level="requireAdministrator"' "Elevação administrativa permanente"
+Check-FileContains ".saurus\installer\SaurusRemote_default.toml" "view_style = 'adaptive'" "Escala adaptável no instalador"
+Check-FileContains ".saurus\installer\SaurusRemote_default.toml" "disable_audio = 'Y'" "Som desativado no instalador"
+Check-FileContains ".saurus\installer\Configure-SaurusRemote.ps1" '--password-stdin' "Provisionamento real da senha pelo instalador"
+Check-FileContains ".saurus\installer\Configure-SaurusRemote.ps1" 'allow-logon-screen-password' "Acesso em tela de logon"
 
 $requiredAssets = @(
     "flutter\windows\runner\resources\app_icon.ico",
