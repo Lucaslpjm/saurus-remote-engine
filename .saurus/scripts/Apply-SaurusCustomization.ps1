@@ -172,12 +172,12 @@ Replace-RegexRequired $configPath `
 
 # 2.1. Preferências operacionais padrão para novas sessões.
 # A escala adaptável também é aplicada no núcleo, para funcionar no portátil e antes do instalador.
-$adaptiveViewReplacement = '"view_style" => self.get_string(key, "adaptive", vec!["original"]), // SAURUS_REMOTE_DEFAULT_ADAPTIVE_VIEW'
-Replace-RegexRequired $configPath `
-    '"view_style"\s*=>\s*self\.get_string\(key,\s*"original",\s*vec!\["adaptive"\]\),' `
+$adaptiveViewOriginal = '            keys::OPTION_VIEW_STYLE => self.get_string(key, "original", vec!["adaptive"]),'
+$adaptiveViewReplacement = '            keys::OPTION_VIEW_STYLE => self.get_string(key, "adaptive", vec!["original"]), // SAURUS_REMOTE_DEFAULT_ADAPTIVE_VIEW'
+Replace-LiteralRequired $configPath `
+    $adaptiveViewOriginal `
     $adaptiveViewReplacement `
-    "Escala adaptável como padrão" `
-    "SAURUS_REMOTE_DEFAULT_ADAPTIVE_VIEW"
+    "Escala adaptável como padrão"
 
 # PeerConfig novo deve iniciar com o áudio remoto desativado. O instalador também grava
 # SaurusRemote_default.toml para cobrir atualizações e perfis já existentes.

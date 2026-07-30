@@ -5,7 +5,7 @@
   #error OutputDir must be supplied by ISCC /DOutputDir=...
 #endif
 #ifndef ProductVersion
-  #define ProductVersion "1.4.9-saurus.3.1.0"
+  #define ProductVersion "1.4.9-saurus.3.1.1"
 #endif
 #ifndef InstallerRoot
   #error InstallerRoot must be supplied by ISCC /DInstallerRoot=...

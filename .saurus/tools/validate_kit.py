@@ -115,6 +115,19 @@ if "'description: Your Remote Desktop Software'" not in apply_script:
     error("Contrato literal upstream da descricao Flutter ausente.")
 if 'Replace-LiteralRequired $pubspecPath' not in apply_script:
     error("Substituicao literal da descricao Flutter ausente.")
+
+# Regressao: a chave de escala no RustDesk 1.4.9 e keys::OPTION_VIEW_STYLE,
+# nao o texto literal "view_style" no match de UserDefaultConfig::get.
+adaptive_original = '            keys::OPTION_VIEW_STYLE => self.get_string(key, "original", vec!["adaptive"]),'
+adaptive_replacement = '            keys::OPTION_VIEW_STYLE => self.get_string(key, "adaptive", vec!["original"]), // SAURUS_REMOTE_DEFAULT_ADAPTIVE_VIEW'
+if adaptive_original not in apply_script:
+    error("Contrato literal upstream da escala desktop ausente.")
+if adaptive_replacement not in apply_script:
+    error("Substituicao literal para escala adaptavel ausente.")
+if 'Replace-LiteralRequired $configPath' not in apply_script or '$adaptiveViewOriginal' not in apply_script:
+    error("Aplicacao literal da escala adaptavel ausente.")
+if r'"view_style"\s*=>\s*self\.get_string' in apply_script:
+    error("Regex antigo de escala procura uma chave inexistente no RustDesk 1.4.9.")
 verify_script = text("scripts/Verify-SaurusCustomization.ps1")
 workflow = text("github/build-saurus-remote-windows.yml")
 client = text("samples/SaurusRemoteEngineClient.cs")

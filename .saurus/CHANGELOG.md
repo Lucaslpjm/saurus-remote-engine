@@ -1,16 +1,13 @@
-# Changelog Saurus Remote
+# Changelog
 
-## 3.1.2 - 2026-07-29
+## 1.4.9-saurus.3.1.1 — correção do padrão de escala no upstream
 
-- Aumenta a janela inicial e mantém o encaixe na área útil do monitor.
-- Reorganiza o Dashboard em dispositivo/conexão no topo e histórico em largura total abaixo.
-- Remove diagnóstico rápido e informações de rede duplicadas do Dashboard.
-- Cria diagnóstico funcional com testes de serviço, ID, motor, servidor/porta, DNS, disponibilidade e versão.
-- Define escala adaptada e áudio desativado somente quando ainda não há preferência salva pelo usuário.
-- Separa os modos de conexão e histórico da `ConnectionPage` sem duplicar controladores globais.
-- Otimiza o workflow com concorrência, checkout raso, cache somente de dependências pub, validação e formatação.
+- corrige o contrato de busca da escala desktop em `UserDefaultConfig::get`;
+- troca a linha real `keys::OPTION_VIEW_STYLE` por substituição literal segura;
+- adiciona validação preflight contra o `hbb_common` usado pelo RustDesk 1.4.9;
+- impede o retorno do regex incorreto que procurava uma chave textual `"view_style"`.
 
-## 1.4.9-saurus.3.1.0 — instalador definitivo e correções operacionais
+## 1.4.9-saurus.3.1.1 — instalador definitivo e correções operacionais
 
 - adiciona `SaurusRemote-<versão>-Setup.exe` construído com Inno Setup;
 - instala em `%ProgramFiles%\Saurus Software\Saurus Remote`;

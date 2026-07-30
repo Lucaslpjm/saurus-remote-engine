@@ -3,7 +3,7 @@ param(
     [Parameter(Mandatory = $true)]
     [string]$SourceRoot,
     [string]$OutputRoot = "",
-    [string]$BuildLabel = "saurus.3.1.0",
+    [string]$BuildLabel = "saurus.3.1.1",
     [switch]$ApplyCustomization,
     [switch]$WithoutHwCodec,
     [switch]$WithoutVram,

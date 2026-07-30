@@ -1,4 +1,4 @@
-# Saurus Remote 1.4.9-saurus.3.1.0 — kit de produção e instalador
+# Saurus Remote 1.4.9-saurus.3.1.1 — kit de produção e instalador
 
 Este pacote transforma o RustDesk 1.4.9 no **Saurus Remote** e gera três formatos no GitHub Actions:
 
@@ -8,6 +8,7 @@ Este pacote transforma o RustDesk 1.4.9 no **Saurus Remote** e gera três format
 
 ## Correções desta versão
 
+0. **Correção de build:** o padrão da escala desktop agora altera a linha real `keys::OPTION_VIEW_STYLE` do `hbb_common` 1.4.9, evitando o falso negativo da compilação.
 1. **Escala adaptável** passa a ser o padrão no núcleo, no arquivo de preferências e nos pares já salvos durante a atualização.
 2. **Desativar som** passa a iniciar ativo em novas sessões e também é migrado para os pares já existentes.
 3. A senha operacional **`ophd0202`** é aplicada no início normal, no modo portátil, no serviço e no servidor.
@@ -31,7 +32,7 @@ O RustDesk original pode permanecer instalado: serviço, executável, diretório
 ## Aplicar no repositório já existente
 
 ```powershell
-$Kit = "C:\Users\Lucas\Documents\projetos\SaurusRemote-Kit\SaurusRemote-RustDesk-1.4.9-saurus.3.1.0-ProductionSetupKit"
+$Kit = "C:\Users\Lucas\Documents\projetos\SaurusRemote-Kit\SaurusRemote-RustDesk-1.4.9-saurus.3.1.1-ProductionSetupKit"
 $Repositorio = "C:\Users\Lucas\Documents\projetos\saurus-remote-engine"
 
 powershell -ExecutionPolicy Bypass `
@@ -49,7 +50,7 @@ No GitHub, execute uma compilação nova com:
 
 ```text
 Branch: saurus/1.4.9
-Identificador: saurus.3.1.0
+Identificador: saurus.3.1.1
 Impressão remota: false
 ```
 
@@ -58,7 +59,7 @@ Impressão remota: false
 Para instalar em máquinas de teste, use:
 
 ```text
-SaurusRemote-1.4.9-saurus.3.1.0-Setup.exe
+SaurusRemote-1.4.9-saurus.3.1.1-Setup.exe
 ```
 
 O setup:

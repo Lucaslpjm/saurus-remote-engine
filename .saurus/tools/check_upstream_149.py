@@ -38,6 +38,7 @@ def main() -> int:
     checks = [
         Check("Cargo.toml", r'^version\s*=\s*"1\.4\.9"\s*$', "versao 1.4.9", True),
         Check("libs/hbb_common/src/config.rs", 'RwLock::new("RustDesk".to_owned())', "nome interno upstream"),
+        Check("libs/hbb_common/src/config.rs", '            keys::OPTION_VIEW_STYLE => self.get_string(key, "original", vec!["adaptive"]),', "padrao de escala desktop upstream"),
         Check("src/core_main.rs", '} else if args[0] == "--password" {', "CLI de senha upstream"),
         Check("src/core_main.rs", '} else if args[0] == "--update" {', "atualizador upstream"),
         Check("src/core_main.rs", '&crate::get_app_name(),', "titulo de despacho upstream"),
