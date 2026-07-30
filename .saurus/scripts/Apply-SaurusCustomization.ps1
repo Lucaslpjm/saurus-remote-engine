@@ -312,19 +312,60 @@ Replace-RegexRequired $coreMainPath `
     "Aplicação da senha fixa ao iniciar o servidor" `
     'SAURUS_REMOTE_SERVER_PASSWORD_ENFORCEMENT'
 
-# O fluxo normal/portátil também inicia o servidor, mas não passa por --service ou --server.
-# Sem esta etapa a interface podia exibir a senha Saurus sem que ela tivesse sido persistida.
-$normalStartPasswordEnforcement = @'
-            // SAURUS_REMOTE_NORMAL_START_PASSWORD_ENFORCEMENT
-            enforce_saurus_default_access_password();
-            std::thread::spawn(move || crate::start_server(false, no_server));
-'@
-Replace-LiteralRequired $coreMainPath `
-    '            std::thread::spawn(move || crate::start_server(false, no_server));' `
-    $normalStartPasswordEnforcement `
-    "Aplicação da senha fixa ao iniciar normalmente"
+# O fluxo normal/portátil também inicia o servidor, mas a forma da chamada pode variar
+# entre commits do RustDesk 1.4.9 e customizações anteriores. Esta rotina encontra a
+# chamada pelo conteúdo, preserva a instrução original e insere a senha antes dela.
+# SAURUS_REMOTE_NORMAL_START_DYNAMIC_PATCH_V2
+$normalStartAppliedMarker = 'SAURUS_REMOTE_NORMAL_START_PASSWORD_ENFORCEMENT'
+$coreMainContent = Read-TextFile $coreMainPath
+if ($coreMainContent.Contains($normalStartAppliedMarker)) {
+    Write-Host "[OK] Aplicação da senha fixa ao iniciar normalmente já estava aplicada."
+} else {
+    $normalStartCallPattern = 'crate::start_server\(\s*false\s*,\s*no_server\s*\)'
+    $normalStartMatches = [regex]::Matches($coreMainContent, $normalStartCallPattern)
 
-# O comando por stdin continua disponível para reparo sem expor a senha no CommandLine do Windows.
+    if ($normalStartMatches.Count -ne 1) {
+        throw "Não foi possível aplicar 'Aplicação da senha fixa ao iniciar normalmente': eram esperadas 1 chamada de start_server(false, no_server) e foram encontradas $($normalStartMatches.Count) em $coreMainPath."
+    }
+
+    $callIndex = $normalStartMatches[0].Index
+    $searchStart = [Math]::Max(0, $callIndex - 1600)
+    $searchLength = $callIndex - $searchStart
+    $prefix = $coreMainContent.Substring($searchStart, $searchLength)
+    $relativeSpawnIndex = $prefix.LastIndexOf('std::thread::spawn', [System.StringComparison]::Ordinal)
+    $statementIndex = $callIndex
+
+    if ($relativeSpawnIndex -ge 0) {
+        $candidateSpawnIndex = $searchStart + $relativeSpawnIndex
+        $betweenSpawnAndCall = $coreMainContent.Substring($candidateSpawnIndex, $callIndex - $candidateSpawnIndex)
+        if (-not $betweenSpawnAndCall.Contains(';')) {
+            $statementIndex = $candidateSpawnIndex
+        }
+    }
+
+    $lineStart = $coreMainContent.LastIndexOf("`n", $statementIndex)
+    if ($lineStart -lt 0) {
+        $lineStart = 0
+    } else {
+        $lineStart++
+    }
+
+    $lineEnd = $coreMainContent.IndexOf("`n", $lineStart)
+    if ($lineEnd -lt 0) { $lineEnd = $coreMainContent.Length }
+    $statementLine = $coreMainContent.Substring($lineStart, $lineEnd - $lineStart)
+    $indentMatch = [regex]::Match($statementLine, '^[ \t]*')
+    $indent = $indentMatch.Value
+    $sourceNewLine = if ($coreMainContent.Contains("`r`n")) { "`r`n" } else { "`n" }
+
+    $insertion =
+        $indent + '// SAURUS_REMOTE_NORMAL_START_PASSWORD_ENFORCEMENT' + $sourceNewLine +
+        $indent + '#[cfg(windows)]' + $sourceNewLine +
+        $indent + 'enforce_saurus_default_access_password();' + $sourceNewLine
+
+    $coreMainContent = $coreMainContent.Insert($lineStart, $insertion)
+    Write-TextFile $coreMainPath $coreMainContent
+    Write-Host "[OK] Aplicação da senha fixa ao iniciar normalmente."
+}# O comando por stdin continua disponível para reparo sem expor a senha no CommandLine do Windows.
 $passwordStdinReplacement = @'
 } else if args[0] == "--password" || args[0] == "--password-stdin" {
             let password = if args[0] == "--password-stdin" {

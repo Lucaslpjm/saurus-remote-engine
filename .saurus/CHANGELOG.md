@@ -1,3 +1,8 @@
+## 1.4.9-saurus.3.1.2
+
+- Corrige a aplicação da senha fixa no início normal/portátil sem depender da formatação exata de core_main.rs.
+- Localiza start_server(false, no_server) de forma tolerante a alterações anteriores e mantém a operação idempotente.
+
 # Changelog
 
 ## 1.4.9-saurus.3.1.1 — correção do padrão de escala no upstream
