@@ -1,3 +1,9 @@
+## 1.4.9-saurus.3.2.3.2
+
+- Remove literais acentuados do pipeline PowerShell executado por Windows PowerShell 5.1.
+- Move a validacao Unicode da interface para Python com escapes ASCII seguros.
+- Normaliza os rotulos finais e bloqueia mojibake antes do build Flutter.
+- Adiciona autoteste do finalizador e contrato estatico no validate_kit.py.
 ## 1.4.9-saurus.3.2.3
 
 - Consolida a UX final em um unico pipeline idempotente.

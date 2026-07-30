@@ -2,3 +2,4 @@
 # Saurus build validator must remain LF-only on Windows.
 .saurus/tools/validate_kit.py text eol=lf
 .saurus/scripts/Apply-SaurusProductionUx.ps1 text eol=lf
+.saurus/tools/finalize_saurus_production_ui.py text eol=lf

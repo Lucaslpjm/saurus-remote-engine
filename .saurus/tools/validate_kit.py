@@ -61,6 +61,7 @@ REQUIRED = [
     "installer/Test-SaurusProductionRelease.ps1",
     "installer/Run-SaurusRemotePostInstall.ps1",
     "tools/verify_saurus_ux_refresh.py",
+    "tools/finalize_saurus_production_ui.py",
     "tools/repair_saurus_utf8_ui.py",
     "tools/apply_saurus_ux_refresh.py",
     "scripts/Apply-SaurusProductionUx.ps1",
@@ -390,18 +391,29 @@ for marker in [
         error(f"Preflight do instalador ausente no workflow: {marker}")
 # SAURUS_REMOTE_PRODUCTION_UX_V3_CONTRACT
 production_ux = text("scripts/Apply-SaurusProductionUx.ps1")
+final_ui = text("tools/finalize_saurus_production_ui.py")
 for marker in [
     "SAURUS_REMOTE_PRODUCTION_UX_PIPELINE_V3",
-    "SAURUS_REMOTE_LEGACY_CONNECTION_TITLE_MIGRATION_V1",
-    "SAURUS_REMOTE_PRODUCTION_UI_2026_07_V3",
-    "Conectar a outro dispositivo",
-    "HistÃ³rico e sessÃµes recentes",
+    "SAURUS_REMOTE_POWERSHELL_ENCODING_SAFE_V1",
+    "finalize_saurus_production_ui.py",
+    "Contrato Unicode final",
 ]:
     if marker not in production_ux:
         error(f"Contrato da UX de producao V3 ausente: {marker}")
 
-if "A interface antiga ainda esta presente depois da migracao" not in production_ux:
-    error("Validacao final contra interface legada nao foi encontrada no pipeline V3.")
+for marker in [
+    "SAURUS_REMOTE_FINAL_UI_NORMALIZER_V2",
+    r'HISTORY_LABEL = "Hist\u00f3rico e sess\u00f5es recentes"',
+    r'"Conectar e acessar sess\u00f5es recentes"',
+    "--check-only",
+    "--self-test",
+    "MOJIBAKE_CHARS",
+]:
+    if marker not in final_ui:
+        error(f"Contrato Unicode do finalizador ausente: {marker}")
+
+if any(ord(character) > 127 for character in production_ux):
+    error("O pipeline PowerShell deve permanecer ASCII puro.")
 # Valida YAML quando PyYAML estiver disponivel; nao e dependencia do kit.
 try:
     import yaml  # type: ignore
