@@ -14,13 +14,13 @@
   #error BrandingRoot must be supplied by ISCC /DBrandingRoot=...
 #endif
 
-#define AppGuid "{1117CE17-506B-4122-A421-69233FCA9C12}"
 #define AppName "Saurus Remote"
 #define AppPublisher "Saurus Software"
 #define AppExeName "SaurusRemote.exe"
 
 [Setup]
-AppId={#AppGuid}
+; SAURUS_REMOTE_APPID_ESCAPED_GUID_V1
+AppId={{1117CE17-506B-4122-A421-69233FCA9C12}
 AppName={#AppName}
 AppVersion={#ProductVersion}
 AppVerName={#AppName} {#ProductVersion}

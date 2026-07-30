@@ -57,6 +57,7 @@ REQUIRED = [
     "samples/Install-Engine.ps1",
     "samples/Provisionar-Senha.ps1",
     "installer/SaurusRemote.iss",
+    "installer/Test-SaurusRemoteInstaller.ps1",
     "installer/Configure-SaurusRemote.ps1",
     "installer/Uninstall-SaurusRemote.ps1",
     "installer/Set-RequireAdministratorManifest.ps1",
@@ -331,6 +332,33 @@ for marker in ["view_style = 'adaptive'", "disable_audio = 'Y'"]:
     if marker not in default_toml:
         error(f"Preferencia operacional ausente: {marker}")
 
+# SAURUS_REMOTE_INNO_PREFLIGHT_VALIDATION_V1
+if "AppId={{1117CE17-506B-4122-A421-69233FCA9C12}" not in installer_iss:
+    error("AppId do Inno Setup nao usa o escape literal correto para a chave GUID.")
+if "AppId={#AppGuid}" in installer_iss:
+    error("AppId antigo ainda expande para uma constante Inno invalida.")
+for marker in [
+    "VersionInfoVersion=1.4.9.0",
+    "VersionInfoProductVersion=1.4.9.0",
+    "VersionInfoProductTextVersion={#ProductVersion}",
+]:
+    if marker not in installer_iss:
+        error(f"Diretiva segura de versao ausente no Inno Setup: {marker}")
+installer_preflight = text("installer/Test-SaurusRemoteInstaller.ps1")
+for marker in [
+    "Compilacao real de preflight do Inno Setup concluida",
+    "AppId={{1117CE17-506B-4122-A421-69233FCA9C12}",
+    "VersionInfoProductTextVersion",
+]:
+    if marker not in installer_preflight:
+        error(f"Protecao ausente no preflight do instalador: {marker}")
+for marker in [
+    "validate-installer:",
+    "Compile installer preflight",
+    "needs: [generate-bridge, build-topmost-window, validate-installer]",
+]:
+    if marker not in workflow:
+        error(f"Preflight do instalador ausente no workflow: {marker}")
 # Valida YAML quando PyYAML estiver disponivel; nao e dependencia do kit.
 try:
     import yaml  # type: ignore

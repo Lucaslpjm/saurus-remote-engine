@@ -6,7 +6,7 @@ on:
       build_label:
         description: "Identificador da compilacao Saurus"
         required: true
-        default: "saurus.3.1.1"
+        default: "saurus.3.1.4.1"
         type: string
       include_remote_printer:
         description: "Incluir driver de impressao remota upstream (desativado por padrao para maximizar coexistencia)"
@@ -27,6 +27,34 @@ env:
   VCPKG_BINARY_SOURCES: "clear;x-gha,readwrite"
 
 jobs:
+  validate-installer:
+    name: Validate definitive installer
+    runs-on: windows-2022
+    timeout-minutes: 15
+    steps:
+      - name: Checkout installer sources
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+
+      - name: Validate build label
+        shell: pwsh
+        run: |
+          $label = '${{ inputs.build_label }}'
+          if ($label -notmatch '^[A-Za-z0-9][A-Za-z0-9._-]{0,39}$') {
+            throw 'build_label invalido.'
+          }
+
+      - name: Install Inno Setup compiler for preflight
+        shell: pwsh
+        run: |
+          choco install innosetup --no-progress -y
+          if ($LASTEXITCODE -ne 0) { throw 'Falha ao instalar o Inno Setup para o preflight.' }
+
+      - name: Compile installer preflight
+        shell: pwsh
+        run: |
+          & .\.saurus\installer\Test-SaurusRemoteInstaller.ps1 `
+            -ProductVersion "1.4.9-${{ inputs.build_label }}"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
   generate-bridge:
     uses: ./.github/workflows/bridge.yml
 
@@ -41,7 +69,7 @@ jobs:
 
   build-windows-x64:
     name: Windows x64 custom engine
-    needs: [generate-bridge, build-topmost-window]
+    needs: [generate-bridge, build-topmost-window, validate-installer]
     runs-on: windows-2022
     timeout-minutes: 120
 

@@ -1,3 +1,17 @@
+## 1.4.9-saurus.3.1.4.1
+
+- Corrige o AppId do Inno Setup usando escape literal de chave GUID.
+- Mantem os campos binarios de versao no formato numerico aceito pelo Windows.
+- Adiciona compilacao real de preflight do instalador antes do build principal.
+- Reaproveita o mesmo preflight no build local e reforca a validacao estatica do kit.
+
+## 1.4.9-saurus.3.1.4
+
+- Corrige o AppId do Inno Setup usando escape literal de chave GUID.
+- Mantem os campos binarios de versao no formato numerico aceito pelo Windows.
+- Adiciona compilacao real de preflight do instalador antes do build principal.
+- Reaproveita o mesmo preflight no build local e reforca a validacao estatica do kit.
+
 ## 1.4.9-saurus.3.1.3
 
 - Corrige VersionInfoProductVersion do Inno Setup para o formato numerico aceito pelo recurso de versao do Windows.

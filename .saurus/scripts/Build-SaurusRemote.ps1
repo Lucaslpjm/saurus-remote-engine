@@ -3,7 +3,7 @@ param(
     [Parameter(Mandatory = $true)]
     [string]$SourceRoot,
     [string]$OutputRoot = "",
-    [string]$BuildLabel = "saurus.3.1.1",
+    [string]$BuildLabel = "saurus.3.1.4.1",
     [switch]$ApplyCustomization,
     [switch]$WithoutHwCodec,
     [switch]$WithoutVram,
@@ -69,6 +69,10 @@ $python = Find-Python
 Require-Command "rustc" | Out-Null
 Require-Command "cargo" | Out-Null
 Require-Command "flutter" | Out-Null
+# SAURUS_REMOTE_INSTALLER_PREFLIGHT_LOCAL_V1
+$installerPreflight = Join-Path $PSScriptRoot "..\installer\Test-SaurusRemoteInstaller.ps1"
+& $installerPreflight -ProductVersion $ProductVersion
+if ($LASTEXITCODE -ne 0) { throw "O preflight do instalador Saurus Remote falhou." }
 
 if (-not $env:VCPKG_ROOT -or -not (Test-Path -LiteralPath $env:VCPKG_ROOT -PathType Container)) {
     throw "VCPKG_ROOT nao esta definido ou nao aponta para uma instalacao valida. O workflow GitHub Actions e o caminho recomendado."
