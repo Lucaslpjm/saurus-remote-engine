@@ -303,6 +303,7 @@ for marker in [
 
 installer_manifest = text("installer/SaurusRemote.requireAdministrator.manifest")
 installer_config = text("installer/Configure-SaurusRemote.ps1")
+# SAURUS_REMOTE_INSTALLER_PREFERENCES_VALIDATION_V2
 installer_iss = text("installer/SaurusRemote.iss")
 default_toml = text("installer/SaurusRemote_default.toml")
 for marker in [
@@ -319,7 +320,7 @@ for marker in [
     'SaurusRemote_default.toml',
     'view_style',
     'disable_audio',
-    'Preferencias adaptativas e audio desativado aplicados',
+    'Preferencias adaptativas, audio desativado e servidor Saurus aplicados.',
     'Servico existente atualizado via Win32_Service.Change.',
 ]:
     if marker not in installer_config:

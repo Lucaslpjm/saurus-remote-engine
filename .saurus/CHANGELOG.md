@@ -115,3 +115,8 @@
 - Reforca o servidor 20.195.216.23:443 e a chave publica em toda inicializacao.
 - Grava SaurusRemote2.toml nos perfis de usuario e LocalService durante a instalacao.
 - Exige que o servico permaneca estavel antes de concluir o setup.
+## saurus.3.2.2.2
+
+- Alinha o validate_kit.py com a mensagem real do configurador headless V4.
+- Remove o falso negativo na validacao das preferencias adaptativas, audio desativado e servidor Saurus.
+- Mantem o build bloqueado caso o configurador e o validador voltem a divergir.
