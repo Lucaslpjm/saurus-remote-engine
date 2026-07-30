@@ -1,3 +1,9 @@
+## 1.4.9-saurus.3.1.4.2
+
+- Corrige a validacao do AppId em arquivos com quebra de linha CRLF.
+- Normaliza CRLF, LF e CR antes das expressoes regulares do preflight.
+- Endurece o teste para impedir regressao no runner Windows.
+
 ## 1.4.9-saurus.3.1.4.1
 
 - Corrige o AppId do Inno Setup usando escape literal de chave GUID.

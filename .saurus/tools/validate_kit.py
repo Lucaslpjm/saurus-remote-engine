@@ -345,6 +345,8 @@ for marker in [
     if marker not in installer_iss:
         error(f"Diretiva segura de versao ausente no Inno Setup: {marker}")
 installer_preflight = text("installer/Test-SaurusRemoteInstaller.ps1")
+if "SAURUS_REMOTE_NORMALIZE_INSTALLER_LINE_ENDINGS_V2" not in installer_preflight:
+    error("O preflight do instalador nao normaliza CRLF/LF antes das expressoes regulares.")
 for marker in [
     "Compilacao real de preflight do Inno Setup concluida",
     "AppId={{1117CE17-506B-4122-A421-69233FCA9C12}",

@@ -2,7 +2,7 @@
 [CmdletBinding()]
 param(
     [string]$InstallerScript = (Join-Path $PSScriptRoot "SaurusRemote.iss"),
-    [string]$ProductVersion = "1.4.9-saurus.3.1.4.1",
+    [string]$ProductVersion = "1.4.9-saurus.3.1.4.2",
     [switch]$StaticOnly
 )
 
@@ -11,7 +11,7 @@ $ErrorActionPreference = "Stop"
 
 function Assert-ExactlyOne {
     param([string]$Content, [string]$Pattern, [string]$Description)
-    $count = [Regex]::Matches($Content, $Pattern).Count
+    $count = [Regex]::Matches($Content, $Pattern, [System.Text.RegularExpressions.RegexOptions]::Multiline).Count
     if ($count -ne 1) {
         throw "${Description}: era esperada exatamente 1 ocorrencia e foram encontradas $count."
     }
@@ -34,6 +34,9 @@ if ($ProductVersion -notmatch '^1\.4\.9-saurus\.[A-Za-z0-9._-]+$') {
 }
 
 $content = [IO.File]::ReadAllText($InstallerScript)
+# SAURUS_REMOTE_NORMALIZE_INSTALLER_LINE_ENDINGS_V2
+# Normaliza CRLF, LF e CR antes das expressoes regulares de linha.
+$content = $content.Replace("`r`n", "`n").Replace("`r", "`n")
 Assert-ExactlyOne $content '(?m)^[ \t]*AppId[ \t]*=[^\r\n]*$' 'Diretiva AppId'
 $appId = [Regex]::Match($content, '(?m)^[ \t]*AppId[ \t]*=[ \t]*([^\r\n]+)$').Groups[1].Value.Trim()
 if ($appId -ne '{{1117CE17-506B-4122-A421-69233FCA9C12}') {
