@@ -9,3 +9,6 @@
 .saurus/android/*.json text eol=lf
 .saurus/android/tests/*.py text eol=lf
 .github/workflows/build-saurus-remote-android.yml text eol=lf
+.saurus/android/assets/SHA256SUMS.txt text eol=lf
+.saurus/android/assets/**/*.png binary
+.saurus/android/assets/*.png binary

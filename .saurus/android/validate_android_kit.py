@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import re
 import sys
@@ -94,6 +95,46 @@ def validate_assets(kit_root: Path) -> None:
                         )
 
 
+
+def validate_asset_checksums(kit_root: Path) -> None:
+    manifest_path = kit_root / "assets/SHA256SUMS.txt"
+    manifest = read_text(manifest_path)
+    seen: set[str] = set()
+    for number, raw_line in enumerate(manifest.splitlines(), start=1):
+        line = raw_line.strip()
+        if not line:
+            continue
+        match = re.fullmatch(r"([0-9a-f]{64})  (.+)", line)
+        if not match:
+            raise ValidationError(f"Invalid asset checksum line at {manifest_path}:{number}: {raw_line!r}")
+        expected, relative = match.groups()
+        if relative in seen:
+            raise ValidationError(f"Duplicate asset checksum entry: {relative}")
+        seen.add(relative)
+        asset = kit_root / "assets" / relative
+        if not asset.is_file():
+            raise ValidationError(f"Asset listed in checksum manifest is missing: {asset}")
+        actual = hashlib.sha256(asset.read_bytes()).hexdigest()
+        if actual != expected:
+            raise ValidationError(f"Asset checksum mismatch for {relative}: {actual}; expected {expected}")
+    required = {
+        "saurus_remote_logo.png",
+        "mipmap-mdpi/ic_launcher.png",
+        "mipmap-hdpi/ic_launcher.png",
+        "mipmap-xhdpi/ic_launcher.png",
+        "mipmap-xxhdpi/ic_launcher.png",
+        "mipmap-xxxhdpi/ic_launcher.png",
+        "mipmap-mdpi/ic_stat_logo.png",
+        "mipmap-hdpi/ic_stat_logo.png",
+        "mipmap-xhdpi/ic_stat_logo.png",
+        "mipmap-xxhdpi/ic_stat_logo.png",
+        "mipmap-xxxhdpi/ic_stat_logo.png",
+    }
+    missing = sorted(required - seen)
+    if missing:
+        raise ValidationError(f"Assets missing from checksum manifest: {', '.join(missing)}")
+
+
 def validate(kit_root: Path, workflow_path: Path) -> None:
     required = [
         "config.json",
@@ -102,6 +143,7 @@ def validate(kit_root: Path, workflow_path: Path) -> None:
         "validate_android_kit.py",
         "tests/test_apply_saurus_android.py",
         "assets/saurus_remote_logo.png",
+        "assets/SHA256SUMS.txt",
     ]
     for relative in required:
         path = kit_root / relative
@@ -184,6 +226,7 @@ def validate(kit_root: Path, workflow_path: Path) -> None:
         raise ValidationError("The patched Flutter SDK must not be cached")
 
     validate_assets(kit_root)
+    validate_asset_checksums(kit_root)
 
     for path in list(kit_root.rglob("*.py")) + [kit_root / "config.json", workflow_path]:
         validate_text_file(path)
