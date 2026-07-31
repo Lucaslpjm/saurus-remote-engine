@@ -22,7 +22,7 @@ BORDER = "0xFFE2E7EC"
 MUTED = "0xFF667085"
 XML_ATTRIBUTE_PATCH_MARKER = "SAURUS_ANDROID_XML_ATTRIBUTE_PATCH_V5"
 LAUNCHER_PATCH_MARKER = "SAURUS_ANDROID_ADAPTIVE_LAUNCHER_V1"
-INCOMING_ACCEPT_MARKER = "SAURUS_ANDROID_INCOMING_ACCEPT_V1"
+INCOMING_ACCEPT_MARKER = "SAURUS_ANDROID_INCOMING_ACCEPT_V2"
 ANDROID_NAMESPACE = "http://schemas.android.com/apk/res/android"
 
 
@@ -919,55 +919,365 @@ def ensure_single_xml_marker(content: str, marker: str) -> str:
     return comment + "\n" + content
 
 
-def patch_incoming_accept_dialog_content(content: str, path: Path) -> tuple[str, bool]:
-    """Make both incoming-session decisions explicit and always visible."""
-    if INCOMING_ACCEPT_MARKER in content:
-        for required in (
-            "label: const Text('Dispensar')",
-            "label: const Text('Aceitar')",
-            "onPressed: cancel",
-            "onPressed: submit",
-        ):
-            if required not in content:
-                raise UiPatchError(f"{path}: incomplete incoming-access action contract: {required}")
-        return content, False
+def _scan_dart_matching(text: str, start: int, opening: str, closing: str) -> int:
+    # Return the matching delimiter index while ignoring strings and comments.
+    if start < 0 or start >= len(text) or text[start] != opening:
+        raise UiPatchError(f"Expected {opening!r} at offset {start}")
+    depth = 0
+    index = start
+    quote: str | None = None
+    triple = False
+    raw_string = False
+    line_comment = False
+    block_comment = 0
+    escaped = False
+    while index < len(text):
+        char = text[index]
+        nxt = text[index + 1] if index + 1 < len(text) else ""
+        if line_comment:
+            if char == "\n":
+                line_comment = False
+            index += 1
+            continue
+        if block_comment:
+            if char == "/" and nxt == "*":
+                block_comment += 1
+                index += 2
+                continue
+            if char == "*" and nxt == "/":
+                block_comment -= 1
+                index += 2
+                continue
+            index += 1
+            continue
+        if quote is not None:
+            if triple:
+                if text.startswith(quote * 3, index):
+                    quote = None
+                    triple = False
+                    raw_string = False
+                    index += 3
+                    continue
+            elif char == quote and (raw_string or not escaped):
+                quote = None
+                raw_string = False
+                index += 1
+                continue
+            if char == "\\" and not raw_string:
+                escaped = not escaped
+            else:
+                escaped = False
+            index += 1
+            continue
+        if char == "/" and nxt == "/":
+            line_comment = True
+            index += 2
+            continue
+        if char == "/" and nxt == "*":
+            block_comment = 1
+            index += 2
+            continue
+        if char in ("'", '"'):
+            raw_string = index > 0 and text[index - 1] in ("r", "R")
+            quote = char
+            triple = text.startswith(char * 3, index)
+            index += 3 if triple else 1
+            escaped = False
+            continue
+        if char == opening:
+            depth += 1
+        elif char == closing:
+            depth -= 1
+            if depth == 0:
+                return index
+        index += 1
+    raise UiPatchError(f"Unbalanced Dart delimiter {opening}{closing}")
 
-    old = '''      actions: [
-        TextButton(onPressed: cancel, child: Text(translate("Dismiss"))),
-        ElevatedButton(onPressed: submit, child: Text(translate("Accept"))),
-      ],'''
-    count = content.count(old)
-    if count != 1:
+
+def _find_dart_method_block(content: str, method_name: str, path: Path) -> tuple[int, int]:
+    pattern = re.compile(
+        rf"(?ms)^[ \t]*(?:void\s+)?{re.escape(method_name)}\s*"
+        rf"\([^)]*\)\s*(?:async\s*)?\{{"
+    )
+    matches = list(pattern.finditer(content))
+    if len(matches) != 1:
         raise UiPatchError(
-            f"{path}: expected one incoming access action block, found {count}"
+            f"{path}: expected one {method_name} method declaration, found {len(matches)}"
         )
-    new = f'''      actions: [
-        OutlinedButton.icon(
-          onPressed: cancel,
-          style: OutlinedButton.styleFrom(
-            foregroundColor: const Color({NAVY}),
-            side: const BorderSide(color: Color({BORDER})),
-            minimumSize: const Size(108, 46),
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          ),
-          icon: const Icon(Icons.close, size: 18),
-          label: const Text('Dispensar'),
-        ),
-        ElevatedButton.icon(
-          onPressed: submit,
-          style: ElevatedButton.styleFrom(
-            backgroundColor: const Color({GOLD}),
-            foregroundColor: const Color({NAVY}),
-            minimumSize: const Size(108, 46),
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            elevation: 0,
-          ),
-          icon: const Icon(Icons.check, size: 18),
-          label: const Text('Aceitar'),
-        ),
-      ], // {INCOMING_ACCEPT_MARKER}'''
-    return content.replace(old, new, 1), True
+    open_brace = content.rfind("{", matches[0].start(), matches[0].end())
+    if open_brace < 0:
+        raise UiPatchError(f"{path}: opening brace not found for {method_name}")
+    close_brace = _scan_dart_matching(content, open_brace, "{", "}")
+    return open_brace, close_brace
 
+
+def _find_named_argument_value(call: str, name: str, path: Path) -> tuple[int, int] | None:
+    # Find a top-level named argument value inside a Dart call body.
+    index = 0
+    depth_round = depth_square = depth_curly = depth_angle = 0
+    quote: str | None = None
+    triple = False
+    raw_string = False
+    line_comment = False
+    block_comment = 0
+    escaped = False
+    while index < len(call):
+        char = call[index]
+        nxt = call[index + 1] if index + 1 < len(call) else ""
+        if line_comment:
+            if char == "\n":
+                line_comment = False
+            index += 1
+            continue
+        if block_comment:
+            if char == "/" and nxt == "*":
+                block_comment += 1
+                index += 2
+                continue
+            if char == "*" and nxt == "/":
+                block_comment -= 1
+                index += 2
+                continue
+            index += 1
+            continue
+        if quote is not None:
+            if triple:
+                if call.startswith(quote * 3, index):
+                    quote = None
+                    triple = False
+                    raw_string = False
+                    index += 3
+                    continue
+            elif char == quote and (raw_string or not escaped):
+                quote = None
+                raw_string = False
+                index += 1
+                continue
+            if char == "\\" and not raw_string:
+                escaped = not escaped
+            else:
+                escaped = False
+            index += 1
+            continue
+        if char == "/" and nxt == "/":
+            line_comment = True
+            index += 2
+            continue
+        if char == "/" and nxt == "*":
+            block_comment = 1
+            index += 2
+            continue
+        if char in ("'", '"'):
+            raw_string = index > 0 and call[index - 1] in ("r", "R")
+            quote = char
+            triple = call.startswith(char * 3, index)
+            index += 3 if triple else 1
+            escaped = False
+            continue
+        if char == "(":
+            depth_round += 1
+        elif char == ")":
+            depth_round -= 1
+        elif char == "[":
+            depth_square += 1
+        elif char == "]":
+            depth_square -= 1
+        elif char == "{":
+            depth_curly += 1
+        elif char == "}":
+            depth_curly -= 1
+        elif char == "<":
+            depth_angle += 1
+        elif char == ">" and depth_angle:
+            depth_angle -= 1
+        if not any((depth_round, depth_square, depth_curly, depth_angle)):
+            match = re.match(rf"\s*{re.escape(name)}\s*:\s*", call[index:])
+            if match:
+                value_start = index + match.end()
+                value_index = value_start
+                vr = vs = vc = va = 0
+                vquote: str | None = None
+                vtriple = False
+                vraw = False
+                vline = False
+                vblock = 0
+                vescaped = False
+                while value_index < len(call):
+                    vchar = call[value_index]
+                    vnxt = call[value_index + 1] if value_index + 1 < len(call) else ""
+                    if vline:
+                        if vchar == "\n":
+                            vline = False
+                        value_index += 1
+                        continue
+                    if vblock:
+                        if vchar == "/" and vnxt == "*":
+                            vblock += 1
+                            value_index += 2
+                            continue
+                        if vchar == "*" and vnxt == "/":
+                            vblock -= 1
+                            value_index += 2
+                            continue
+                        value_index += 1
+                        continue
+                    if vquote is not None:
+                        if vtriple:
+                            if call.startswith(vquote * 3, value_index):
+                                vquote = None
+                                vtriple = False
+                                vraw = False
+                                value_index += 3
+                                continue
+                        elif vchar == vquote and (vraw or not vescaped):
+                            vquote = None
+                            vraw = False
+                            value_index += 1
+                            continue
+                        if vchar == "\\" and not vraw:
+                            vescaped = not vescaped
+                        else:
+                            vescaped = False
+                        value_index += 1
+                        continue
+                    if vchar == "/" and vnxt == "/":
+                        vline = True
+                        value_index += 2
+                        continue
+                    if vchar == "/" and vnxt == "*":
+                        vblock = 1
+                        value_index += 2
+                        continue
+                    if vchar in ("'", '"'):
+                        vraw = value_index > 0 and call[value_index - 1] in ("r", "R")
+                        vquote = vchar
+                        vtriple = call.startswith(vchar * 3, value_index)
+                        value_index += 3 if vtriple else 1
+                        vescaped = False
+                        continue
+                    if vchar == "(":
+                        vr += 1
+                    elif vchar == ")":
+                        vr -= 1
+                    elif vchar == "[":
+                        vs += 1
+                    elif vchar == "]":
+                        vs -= 1
+                    elif vchar == "{":
+                        vc += 1
+                    elif vchar == "}":
+                        vc -= 1
+                    elif vchar == "<":
+                        va += 1
+                    elif vchar == ">" and va:
+                        va -= 1
+                    elif vchar == "," and not any((vr, vs, vc, va)):
+                        return value_start, value_index
+                    value_index += 1
+                return value_start, value_index
+        index += 1
+    return None
+
+
+def _incoming_actions_widget() -> str:
+    return f"""[
+        // {INCOMING_ACCEPT_MARKER}
+        SizedBox(
+          width: double.infinity,
+          child: Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: cancel,
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: const Color({NAVY}),
+                    side: const BorderSide(color: Color({BORDER})),
+                    minimumSize: const Size(0, 46),
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+                  ),
+                  icon: const Icon(Icons.close, size: 18),
+                  label: const FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text('Dispensar'),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: submit,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color({GOLD}),
+                    foregroundColor: const Color({NAVY}),
+                    minimumSize: const Size(0, 46),
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+                    elevation: 0,
+                  ),
+                  icon: const Icon(Icons.check, size: 18),
+                  label: const FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text('Aceitar'),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ]"""
+
+
+def patch_incoming_accept_dialog_content(content: str, path: Path) -> tuple[str, bool]:
+    # Replace incoming actions regardless of whether upstream uses a list or variable.
+    method_open, method_close = _find_dart_method_block(content, "showLoginDialog", path)
+    method = content[method_open : method_close + 1]
+    for callback in (
+        "sendLoginResponse(client, false)",
+        "sendLoginResponse(client, true)",
+    ):
+        if callback not in method:
+            raise UiPatchError(f"{path}: missing incoming-access callback: {callback}")
+    dialog_match = re.search(r"\bCustomAlertDialog\s*\(", method)
+    if not dialog_match:
+        raise UiPatchError(f"{path}: incoming CustomAlertDialog call not found")
+    call_open = method.find("(", dialog_match.start())
+    call_close = _scan_dart_matching(method, call_open, "(", ")")
+    call_body_start = call_open + 1
+    call_body = method[call_body_start:call_close]
+    actions = _find_named_argument_value(call_body, "actions", path)
+    replacement = _incoming_actions_widget()
+    if actions is None:
+        insertion = _find_named_argument_value(call_body, "onSubmit", path)
+        if insertion is None:
+            raise UiPatchError(f"{path}: neither actions nor onSubmit was found in incoming dialog")
+        argument_start = call_body.rfind("\n", 0, insertion[0]) + 1
+        indent_match = re.match(r"\s*", call_body[argument_start:])
+        indent = indent_match.group(0) if indent_match else "      "
+        updated_body = (
+            call_body[:argument_start]
+            + f"{indent}actions: {replacement},\n"
+            + call_body[argument_start:]
+        )
+    else:
+        value_start, value_end = actions
+        current = call_body[value_start:value_end]
+        if INCOMING_ACCEPT_MARKER in current and re.sub(r"\s+", "", current) == re.sub(r"\s+", "", replacement):
+            return content, False
+        updated_body = call_body[:value_start] + replacement + call_body[value_end:]
+    updated_method = method[:call_body_start] + updated_body + method[call_close:]
+    updated = content[:method_open] + updated_method + content[method_close + 1:]
+    final_open, final_close = _find_dart_method_block(updated, "showLoginDialog", path)
+    final_method = updated[final_open : final_close + 1]
+    for required in (
+        INCOMING_ACCEPT_MARKER,
+        "child: Text('Dispensar')",
+        "child: Text('Aceitar')",
+        "onPressed: cancel",
+        "onPressed: submit",
+        "width: double.infinity",
+    ):
+        if required not in final_method:
+            raise UiPatchError(f"{path}: incomplete incoming-access action contract: {required}")
+    return updated, updated != content
 
 def patch_incoming_accept_dialog(root: Path) -> None:
     path = root / "flutter/lib/models/server_model.dart"
@@ -1239,40 +1549,97 @@ class ClientInfo"""
                     f"Dart class boundary self-test failed: {required}"
                 )
 
-        incoming_fixture = '''void showLoginDialog(Client client) {
-  cancel() {}
-  submit() {}
+        incoming_variants = [
+            """void caller(Client client) { showLoginDialog(client); }
+
+void showLoginDialog(Client client) {
+  cancel() { sendLoginResponse(client, false); }
+  submit() { sendLoginResponse(client, true); }
   return CustomAlertDialog(
       content: const Text('request'),
       actions: [
-        TextButton(onPressed: cancel, child: Text(translate("Dismiss"))),
-        ElevatedButton(onPressed: submit, child: Text(translate("Accept"))),
+        TextButton(onPressed: cancel, child: Text(translate(\"Dismiss\"))),
+        ElevatedButton(onPressed: submit, child: Text(translate(\"Accept\"))),
       ],
+      onSubmit: submit,
+      onCancel: cancel,
   );
-}'''
-        incoming_fixture, changed = patch_incoming_accept_dialog_content(
-            incoming_fixture,
-            root / "server-model-fixture.dart",
+}""",
+            """void showLoginDialog(Client client) {
+  cancel() { sendLoginResponse(client, false); }
+  submit() { sendLoginResponse(client, true); }
+  return CustomAlertDialog(
+      content: const Text('request'),
+      actions: [
+        dialogButton("Dismiss", onPressed: cancel, isOutline: true),
+        if (approveMode != 'password')
+          dialogButton("Accept", onPressed: submit),
+      ],
+      onSubmit: submit,
+      onCancel: cancel,
+  );
+}""",
+            """void showLoginDialog(Client client) {
+  cancel() { sendLoginResponse(client, false); }
+  submit() { sendLoginResponse(client, true); }
+  final buttons = <Widget>[
+    dialogButton(\"Dismiss\", onPressed: cancel, isOutline: true),
+    dialogButton(\"Accept\", onPressed: submit),
+  ];
+  return CustomAlertDialog(
+      content: const Text('request'),
+      actions: buttons,
+      onSubmit: submit,
+      onCancel: cancel,
+  );
+}""",
+            """void showLoginDialog(Client client) {
+  cancel() { sendLoginResponse(client, false); }
+  submit() { sendLoginResponse(client, true); }
+  return CustomAlertDialog(
+      content: const Text('request'),
+      onSubmit: submit,
+      onCancel: cancel,
+  );
+}""",
+        ]
+        for number, incoming_fixture in enumerate(incoming_variants, start=1):
+            incoming_fixture, changed = patch_incoming_accept_dialog_content(
+                incoming_fixture,
+                root / f"server-model-fixture-{number}.dart",
+            )
+            if not changed:
+                raise UiPatchError(f"Incoming-access structural self-test {number} did not apply")
+            incoming_second, changed = patch_incoming_accept_dialog_content(
+                incoming_fixture,
+                root / f"server-model-fixture-{number}.dart",
+            )
+            if changed or incoming_second != incoming_fixture:
+                raise UiPatchError(f"Incoming-access structural self-test {number} is not idempotent")
+            for required in (
+                "child: Text('Dispensar')",
+                "child: Text('Aceitar')",
+                "onPressed: cancel",
+                "onPressed: submit",
+                "width: double.infinity",
+                INCOMING_ACCEPT_MARKER,
+            ):
+                if required not in incoming_fixture:
+                    raise UiPatchError(f"Incoming-access structural self-test {number} failed: {required}")
+        malformed_incoming = incoming_variants[0].replace(
+            "sendLoginResponse(client, true);", "close();"
         )
-        if not changed:
-            raise UiPatchError("Incoming-access action self-test did not apply")
-        incoming_second, changed = patch_incoming_accept_dialog_content(
-            incoming_fixture,
-            root / "server-model-fixture.dart",
-        )
-        if changed or incoming_second != incoming_fixture:
-            raise UiPatchError("Incoming-access action patch is not idempotent")
-        for required in (
-            "label: const Text('Dispensar')",
-            "label: const Text('Aceitar')",
-            "onPressed: cancel",
-            "onPressed: submit",
-            INCOMING_ACCEPT_MARKER,
-        ):
-            if required not in incoming_fixture:
-                raise UiPatchError(
-                    f"Incoming-access action self-test failed: {required}"
-                )
+        try:
+            patch_incoming_accept_dialog_content(
+                malformed_incoming,
+                root / "server-model-negative-fixture.dart",
+            )
+        except UiPatchError:
+            pass
+        else:
+            raise UiPatchError(
+                "Incoming-access negative self-test accepted a dialog without approve callback"
+            )
 
         xml_root = root / "xml-fixture"
         manifest = xml_root / "flutter/android/app/src/main/AndroidManifest.xml"

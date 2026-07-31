@@ -69,11 +69,13 @@ def verify_ui_v2(root: Path) -> None:
 
     server_model = read(root / "flutter/lib/models/server_model.dart")
     for marker, description in [
-        ("SAURUS_ANDROID_INCOMING_ACCEPT_V1", "incoming access action marker"),
-        ("label: const Text('Dispensar')", "visible dismiss action"),
-        ("label: const Text('Aceitar')", "visible accept action"),
+        ("SAURUS_ANDROID_INCOMING_ACCEPT_V2", "incoming access action marker"),
+        ("child: Text('Dispensar')", "visible dismiss action"),
+        ("child: Text('Aceitar')", "visible accept action"),
         ("onPressed: cancel", "incoming dismiss callback"),
         ("onPressed: submit", "incoming accept callback"),
+        ("width: double.infinity", "responsive full-width incoming action row"),
+        ("const SizedBox(width: 12)", "incoming action spacing"),
     ]:
         require(server_model, marker, description)
 

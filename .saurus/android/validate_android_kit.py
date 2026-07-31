@@ -164,9 +164,9 @@ def validate(kit_root: Path, workflow_path: Path) -> None:
         "Accessibility XML duplicate-attribute regression",
         "SAURUS_ANDROID_ADAPTIVE_LAUNCHER_V1",
         "def patch_launcher_resources",
-        "SAURUS_ANDROID_INCOMING_ACCEPT_V1",
+        "SAURUS_ANDROID_INCOMING_ACCEPT_V2",
         "def patch_incoming_accept_dialog_content",
-        "Incoming-access action self-test",
+        "Incoming-access structural self-test",
     ]:
         require(ui_apply, marker, "robust Android UI patch")
 
