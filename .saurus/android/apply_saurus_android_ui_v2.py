@@ -1226,16 +1226,77 @@ def _incoming_actions_widget() -> str:
       ]"""
 
 
-def patch_incoming_accept_dialog_content(content: str, path: Path) -> tuple[str, bool]:
-    # Replace incoming actions regardless of whether upstream uses a list or variable.
-    method_open, method_close = _find_dart_method_block(content, "showLoginDialog", path)
+def _find_incoming_dialog_method(
+    content: str, path: Path
+) -> tuple[str, int, int]:
+    """Find the method that owns the incoming-access dialog.
+
+    Some RustDesk versions build the dialog directly in showLoginDialog, while
+    others pass both response callbacks to a shared helper such as
+    showClientDialog. Follow the smallest call that encloses both callbacks so
+    the patch remains tied to the incoming-access flow.
+    """
+    login_name = "showLoginDialog"
+    method_open, method_close = _find_dart_method_block(content, login_name, path)
     method = content[method_open : method_close + 1]
-    for callback in (
+    callbacks = (
         "sendLoginResponse(client, false)",
         "sendLoginResponse(client, true)",
-    ):
-        if callback not in method:
+    )
+    callback_offsets: list[int] = []
+    for callback in callbacks:
+        offset = method.find(callback)
+        if offset < 0:
             raise UiPatchError(f"{path}: missing incoming-access callback: {callback}")
+        callback_offsets.append(offset)
+
+    if re.search(r"\bCustomAlertDialog\s*\(", method):
+        return login_name, method_open, method_close
+
+    first_callback = min(callback_offsets)
+    last_callback_end = max(
+        offset + len(callback)
+        for offset, callback in zip(callback_offsets, callbacks)
+    )
+    candidates: list[tuple[int, str]] = []
+    for match in re.finditer(r"\b([A-Za-z_]\w*)\s*\(", method):
+        call_open = method.find("(", match.start())
+        if call_open >= first_callback:
+            continue
+        try:
+            call_close = _scan_dart_matching(method, call_open, "(", ")")
+        except UiPatchError:
+            continue
+        if call_close >= last_callback_end:
+            candidates.append((call_close - call_open, match.group(1)))
+
+    if not candidates:
+        raise UiPatchError(
+            f"{path}: incoming CustomAlertDialog call or delegated dialog method not found"
+        )
+    _, delegate_name = min(candidates)
+    delegate_open, delegate_close = _find_dart_method_block(
+        content, delegate_name, path
+    )
+    delegate = content[delegate_open : delegate_close + 1]
+    if not re.search(r"\bCustomAlertDialog\s*\(", delegate):
+        raise UiPatchError(
+            f"{path}: delegated incoming dialog method {delegate_name} "
+            "does not contain CustomAlertDialog"
+        )
+    for callback in ("onCancel()", "onSubmit()"):
+        if callback not in delegate:
+            raise UiPatchError(
+                f"{path}: delegated incoming dialog method {delegate_name} "
+                f"does not invoke {callback}"
+            )
+    return delegate_name, delegate_open, delegate_close
+
+
+def patch_incoming_accept_dialog_content(content: str, path: Path) -> tuple[str, bool]:
+    # Replace incoming actions regardless of whether upstream uses a list or variable.
+    method_name, method_open, method_close = _find_incoming_dialog_method(content, path)
+    method = content[method_open : method_close + 1]
     dialog_match = re.search(r"\bCustomAlertDialog\s*\(", method)
     if not dialog_match:
         raise UiPatchError(f"{path}: incoming CustomAlertDialog call not found")
@@ -1265,7 +1326,7 @@ def patch_incoming_accept_dialog_content(content: str, path: Path) -> tuple[str,
         updated_body = call_body[:value_start] + replacement + call_body[value_end:]
     updated_method = method[:call_body_start] + updated_body + method[call_close:]
     updated = content[:method_open] + updated_method + content[method_close + 1:]
-    final_open, final_close = _find_dart_method_block(updated, "showLoginDialog", path)
+    final_open, final_close = _find_dart_method_block(updated, method_name, path)
     final_method = updated[final_open : final_close + 1]
     for required in (
         INCOMING_ACCEPT_MARKER,
@@ -1598,6 +1659,35 @@ void showLoginDialog(Client client) {
   submit() { sendLoginResponse(client, true); }
   return CustomAlertDialog(
       content: const Text('request'),
+      onSubmit: submit,
+      onCancel: cancel,
+  );
+}""",
+            """void showLoginDialog(Client client) {
+  showClientDialog(
+    client,
+    () => sendLoginResponse(client, false),
+    () => sendLoginResponse(client, true),
+  );
+}
+
+void showClientDialog(
+    Client client, VoidCallback onCancel, VoidCallback onSubmit) {
+  cancel() {
+    onCancel();
+    close();
+  }
+  submit() {
+    onSubmit();
+    close();
+  }
+  return CustomAlertDialog(
+      content: const Text('request'),
+      actions: [
+        dialogButton("Dismiss", onPressed: cancel, isOutline: true),
+        if (approveMode != 'password')
+          dialogButton("Accept", onPressed: submit),
+      ],
       onSubmit: submit,
       onCancel: cancel,
   );
