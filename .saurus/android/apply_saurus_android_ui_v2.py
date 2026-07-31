@@ -11,6 +11,7 @@ import argparse
 import re
 import sys
 import tempfile
+import xml.etree.ElementTree as ET
 from pathlib import Path
 
 MARKER = "SAURUS_ANDROID_UI_V2"
@@ -854,7 +855,11 @@ def patch_accessibility_resources(root: Path) -> None:
     config_content = read_text(config)
     if f"{MARKER}_ACCESSIBILITY_DESCRIPTION" not in config_content:
         pattern = r"(<accessibility-service\b)"
-        replacement = rf'\1\n    android:description="@string/saurus_accessibility_description"\n    <!-- {MARKER}_ACCESSIBILITY_DESCRIPTION -->'
+        replacement = (
+            f'<!-- {MARKER}_ACCESSIBILITY_DESCRIPTION -->\n'
+            r'\1'
+            '\n    android:description="@string/saurus_accessibility_description"'
+        )
         updated, count = re.subn(pattern, replacement, config_content, count=1)
         if count != 1:
             raise UiPatchError(f"{config}: accessibility-service root not found")
@@ -1007,6 +1012,33 @@ class ClientInfo"""
                 raise UiPatchError(
                     f"Dart class boundary self-test failed: {required}"
                 )
+
+        xml_root = root / "xml-fixture"
+        manifest = xml_root / "flutter/android/app/src/main/AndroidManifest.xml"
+        accessibility = xml_root / "flutter/android/app/src/main/res/xml/accessibility_service_config.xml"
+        write_text(
+            manifest,
+            """<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<application>
+<service
+            android:label="Saurus Remote - Controle de entrada"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+</service>
+</application>
+</manifest>""",
+        )
+        write_text(
+            accessibility,
+            """<accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
+    android:accessibilityEventTypes="typeAllMask" />""",
+        )
+        patch_accessibility_resources(xml_root)
+        patch_accessibility_resources(xml_root)
+        ET.parse(manifest)
+        ET.parse(accessibility)
+        xml_text = read_text(accessibility)
+        if xml_text.count(f"{MARKER}_ACCESSIBILITY_DESCRIPTION") != 1:
+            raise UiPatchError("Accessibility XML marker is not idempotent")
 
         if not all(ord(ch) < 128 for ch in Path(__file__).read_text(encoding="utf-8")):
             raise UiPatchError("The UI patch source must remain ASCII-only")

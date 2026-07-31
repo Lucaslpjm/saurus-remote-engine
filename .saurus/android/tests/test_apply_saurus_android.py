@@ -298,7 +298,41 @@ Toast.makeText(context, "RustDesk is Open", Toast.LENGTH_LONG).show()
     put(root, "flutter/pubspec.yaml", "description: Your Remote Desktop Software")
 
 
+
+def test_title_stage_contract() -> None:
+    with tempfile.TemporaryDirectory() as temp:
+        root = Path(temp)
+        create_fixture(root)
+        apply_mod.apply(root, ANDROID, "1.0.2-stage-test")
+        server_path = root / "flutter/lib/mobile/pages/server_page.dart"
+        base_content = server_path.read_text(encoding="utf-8")
+        assert verify_mod.expected_host_title(base_content) == verify_mod.BASE_HOST_TITLE
+        verify_mod.verify(root, ANDROID)
+
+        final_content = base_content.replace(
+            'final title = "Este dispositivo"; // SAURUS_ANDROID_HOST_V1_HOST_TITLE',
+            'final title = "Dispositivo"; // SAURUS_ANDROID_UI_V2_SERVER',
+            1,
+        )
+        assert final_content != base_content, "The fixture did not transition to the final UI stage"
+        server_path.write_text(final_content, encoding="utf-8", newline="\n")
+        assert verify_mod.expected_host_title(final_content) == verify_mod.FINAL_HOST_TITLE
+        verify_mod.verify(root, ANDROID)
+
+        conflicting = final_content.replace(
+            'final title = "Dispositivo"; // SAURUS_ANDROID_UI_V2_SERVER',
+            'final title = "Este dispositivo"; // SAURUS_ANDROID_UI_V2_SERVER',
+            1,
+        )
+        try:
+            verify_mod.verify_host_title(conflicting)
+        except verify_mod.VerificationError:
+            pass
+        else:
+            raise AssertionError("A mismatched UI marker/title pair was accepted")
+
 def main() -> int:
+    test_title_stage_contract()
     with tempfile.TemporaryDirectory() as temp:
         root = Path(temp)
         create_fixture(root)
@@ -321,7 +355,7 @@ def main() -> int:
             if p.is_file()
         }
         assert before == after, "Customization is not idempotent"
-    print("[OK] Android customization fixture test passed")
+    print("[OK] Android base customization and title-stage contract tests passed")
     return 0
 
 

@@ -44,6 +44,7 @@ def verify_ui_v2(root: Path) -> None:
 
     server = read(root / "flutter/lib/mobile/pages/server_page.dart")
     for marker, description in [
+        ('final title = "Dispositivo"', "final compact host page title"),
         (f"{MARKER}_SERVER", "server page marker"),
         (f"{MARKER}_GUIDED_INPUT", "guided input permission"),
         ("class SaurusHostHero", "host hero card"),

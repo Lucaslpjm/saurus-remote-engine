@@ -502,7 +502,7 @@ def apply(root: Path, kit_root: Path, version: str) -> None:
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--source-root", type=Path, required=True)
-    parser.add_argument("--version", default="1.0.0-test1")
+    parser.add_argument("--version", default="1.0.0-test2")
     parser.add_argument("--verify-only", action="store_true")
     return parser.parse_args()
 

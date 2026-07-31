@@ -8,6 +8,30 @@ import sys
 from pathlib import Path
 
 MARKER = "SAURUS_ANDROID_HOST_V1"
+UI_V2_SERVER_MARKER = "SAURUS_ANDROID_UI_V2_SERVER"
+BASE_HOST_TITLE = 'final title = "Este dispositivo"'
+FINAL_HOST_TITLE = 'final title = "Dispositivo"'
+
+
+def expected_host_title(server_page: str) -> str:
+    """Return the title contract for the currently applied customization stage.
+
+    The base host patch intentionally uses ``Este dispositivo``. The visual V2
+    layer later compacts the page title to ``Dispositivo`` and adds its marker.
+    The verifier must support both valid stages so unit tests and production
+    verification do not contradict each other.
+    """
+    return FINAL_HOST_TITLE if UI_V2_SERVER_MARKER in server_page else BASE_HOST_TITLE
+
+
+def verify_host_title(server_page: str) -> None:
+    expected = expected_host_title(server_page)
+    require(server_page, expected, "host page title")
+    unexpected = BASE_HOST_TITLE if expected == FINAL_HOST_TITLE else FINAL_HOST_TITLE
+    if unexpected in server_page:
+        raise VerificationError(
+            f"Conflicting host page title for the detected customization stage: {unexpected}"
+        )
 
 
 class VerificationError(RuntimeError):
@@ -74,8 +98,8 @@ def verify(root: Path, kit_root: Path) -> None:
         raise VerificationError("Mobile navigation is not ordered as Host, Chat, Connections")
 
     server_page = read(root / "flutter/lib/mobile/pages/server_page.dart")
+    verify_host_title(server_page)
     for value, description in [
-        ('final title = "Dispositivo"', "host page title"),
         (f'{MARKER}_LOCKED_SECURITY_UI', "locked security menu"),
         (f'{MARKER}_SHOW_FIXED_PASSWORD', "fixed password visibility"),
         ("title: 'Este dispositivo'", "device card title"),

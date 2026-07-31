@@ -6,7 +6,7 @@ on:
       build_version:
         description: "Versao do APK, por exemplo 1.0.0-test2"
         required: true
-        default: "1.0.1-test8"
+        default: "1.0.2-test4"
         type: string
 
 permissions:
@@ -25,6 +25,7 @@ jobs:
   validate-android-kit:
     name: Validate Android host customization
     runs-on: ubuntu-24.04
+    timeout-minutes: 20
     steps:
       - name: Checkout source code
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
@@ -87,6 +88,8 @@ jobs:
             .saurus/android/verify_saurus_android.py \
             .saurus/android/apply_saurus_android_ui_v2.py \
             .saurus/android/verify_saurus_android_ui_v2.py \
+            .saurus/android/run_saurus_android_pipeline.py \
+            .saurus/android/validate_android_pipeline_contracts.py \
             .saurus/android/validate_android_kit.py \
             .saurus/android/tests/test_apply_saurus_android.py
           python .saurus/android/validate_android_kit.py \
@@ -94,23 +97,47 @@ jobs:
             --workflow .github/workflows/build-saurus-remote-android.yml
           python .saurus/android/tests/test_apply_saurus_android.py
           python .saurus/android/apply_saurus_android_ui_v2.py --self-test
+          python .saurus/android/validate_android_pipeline_contracts.py --repo-root "$PWD"
 
       - name: Apply customization on real RustDesk 1.4.9 tree
         shell: bash
         run: |
           set -euo pipefail
-          python .saurus/android/apply_saurus_android.py \
+          python .saurus/android/run_saurus_android_pipeline.py \
             --source-root "$PWD" \
-            --version '${{ inputs.build_version }}'
-          python .saurus/android/apply_saurus_android_ui_v2.py --source-root "$PWD"
-          python .saurus/android/verify_saurus_android.py --source-root "$PWD"
-          python .saurus/android/verify_saurus_android_ui_v2.py --source-root "$PWD"
-          python .saurus/android/apply_saurus_android.py \
-            --source-root "$PWD" \
-            --version '${{ inputs.build_version }}'
-          python .saurus/android/apply_saurus_android_ui_v2.py --source-root "$PWD"
-          python .saurus/android/verify_saurus_android_ui_v2.py --source-root "$PWD"
+            --version '${{ inputs.build_version }}' \
+            --verify-idempotency
           git diff --check
+
+      - name: Install Flutter for syntax validation
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
+        with:
+          channel: stable
+          flutter-version: ${{ env.ANDROID_FLUTTER_VERSION }}
+
+      - name: Parse customized Dart and Android XML files
+        shell: bash
+        run: |
+          set -euo pipefail
+          dart format --output=none \
+            flutter/lib/common.dart \
+            flutter/lib/mobile/pages/home_page.dart \
+            flutter/lib/mobile/pages/server_page.dart \
+            flutter/lib/mobile/pages/settings_page.dart \
+            flutter/lib/models/server_model.dart
+          python - <<'PY'
+          import xml.etree.ElementTree as ET
+          from pathlib import Path
+
+          files = [
+              Path('flutter/android/app/src/main/AndroidManifest.xml'),
+              Path('flutter/android/app/src/main/res/xml/accessibility_service_config.xml'),
+              Path('flutter/android/app/src/main/res/values/saurus_accessibility_strings.xml'),
+          ]
+          for path in files:
+              ET.parse(path)
+              print(f'[OK] XML parsed: {path}')
+          PY
 
   generate-bridge:
     name: Generate Flutter-Rust bridge
@@ -120,6 +147,7 @@ jobs:
     name: Build Android native library - ${{ matrix.arch }}
     needs: [validate-android-kit, generate-bridge]
     runs-on: ubuntu-24.04
+    timeout-minutes: 120
     strategy:
       fail-fast: false
       matrix:
@@ -175,12 +203,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python .saurus/android/apply_saurus_android.py \
+          python .saurus/android/run_saurus_android_pipeline.py \
             --source-root "$PWD" \
             --version '${{ inputs.build_version }}'
-          python .saurus/android/apply_saurus_android_ui_v2.py --source-root "$PWD"
-          python .saurus/android/verify_saurus_android.py --source-root "$PWD"
-          python .saurus/android/verify_saurus_android_ui_v2.py --source-root "$PWD"
 
       - name: Install Flutter
         uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
@@ -273,6 +298,7 @@ jobs:
     name: Package Saurus Remote Android APKs
     needs: [validate-android-kit, generate-bridge, build-native-libraries]
     runs-on: ubuntu-24.04
+    timeout-minutes: 75
     steps:
       - name: Free disk space
         uses: jlumbroso/free-disk-space@54081f138730dfa15788a46383842cd2f914a1be # v1.3.1
@@ -302,12 +328,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python .saurus/android/apply_saurus_android.py \
+          python .saurus/android/run_saurus_android_pipeline.py \
             --source-root "$PWD" \
             --version '${{ inputs.build_version }}'
-          python .saurus/android/apply_saurus_android_ui_v2.py --source-root "$PWD"
-          python .saurus/android/verify_saurus_android.py --source-root "$PWD"
-          python .saurus/android/verify_saurus_android_ui_v2.py --source-root "$PWD"
 
       - name: Install Flutter
         uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
@@ -398,8 +421,15 @@ jobs:
           KEY_PASSWORD: ${{ secrets.SAURUS_ANDROID_KEY_PASSWORD }}
         run: |
           set -euo pipefail
+          GRADLE_FILE="flutter/android/app/build.gradle"
+          KEYSTORE_FILE="flutter/android/app/saurus-remote-release.jks"
           if [[ -n "${KEYSTORE_BASE64:-}" && -n "${KEY_ALIAS:-}" && -n "${STORE_PASSWORD:-}" && -n "${KEY_PASSWORD:-}" ]]; then
-            echo "$KEYSTORE_BASE64" | base64 --decode > flutter/android/app/saurus-remote-release.jks
+            echo "$KEYSTORE_BASE64" | base64 --decode > "$KEYSTORE_FILE"
+            test -s "$KEYSTORE_FILE"
+            keytool -list \
+              -keystore "$KEYSTORE_FILE" \
+              -storepass "$STORE_PASSWORD" \
+              -alias "$KEY_ALIAS" >/dev/null
             printf '%s\n' \
               "storePassword=$STORE_PASSWORD" \
               "keyPassword=$KEY_PASSWORD" \
@@ -407,8 +437,17 @@ jobs:
               "storeFile=saurus-remote-release.jks" \
               > flutter/android/key.properties
             echo "SIGNING_MODE=release" >> "$GITHUB_ENV"
+            echo "[OK] Release signing configuration validated."
           else
-            sed -i 's/signingConfig signingConfigs.release/signingConfig signingConfigs.debug/' flutter/android/app/build.gradle
+            if grep -Fq 'signingConfig signingConfigs.release' "$GRADLE_FILE"; then
+              sed -i 's/signingConfig signingConfigs.release/signingConfig signingConfigs.debug/g' "$GRADLE_FILE"
+            elif grep -Fq 'signingConfig signingConfigs.debug' "$GRADLE_FILE"; then
+              echo "Debug signing was already configured."
+            else
+              echo "Could not locate the Android signingConfig contract." >&2
+              exit 1
+            fi
+            grep -Fq 'signingConfig signingConfigs.debug' "$GRADLE_FILE"
             echo "SIGNING_MODE=debug-test" >> "$GITHUB_ENV"
             echo "Android signing secrets not configured; APKs will use the debug test key."
           fi
@@ -421,7 +460,13 @@ jobs:
         run: |
           set -euo pipefail
           export PATH="${JAVA_HOME}/bin:${PATH}"
-          sed -i 's/org.gradle.jvmargs=-Xmx1024M/org.gradle.jvmargs=-Xmx3g/' flutter/android/gradle.properties
+          GRADLE_PROPERTIES="flutter/android/gradle.properties"
+          if grep -Eq '^org\.gradle\.jvmargs=' "$GRADLE_PROPERTIES"; then
+            sed -i -E 's#^org\.gradle\.jvmargs=.*#org.gradle.jvmargs=-Xmx3g -XX:MaxMetaspaceSize=1g -Dfile.encoding=UTF-8#' "$GRADLE_PROPERTIES"
+          else
+            printf '%s\n' 'org.gradle.jvmargs=-Xmx3g -XX:MaxMetaspaceSize=1g -Dfile.encoding=UTF-8' >> "$GRADLE_PROPERTIES"
+          fi
+          grep -Fq 'org.gradle.jvmargs=-Xmx3g' "$GRADLE_PROPERTIES"
           mkdir -p output
           pushd flutter
           flutter config --no-analytics
@@ -462,7 +507,14 @@ jobs:
           test -x "$AAPT"
           test -x "$APKSIGNER"
 
-          for APK in output/*.apk; do
+          mapfile -t APKS < <(find output -maxdepth 1 -type f -name '*.apk' -print | sort)
+          if [[ "${#APKS[@]}" -ne 4 ]]; then
+            echo "Expected exactly 4 generated APKs, found ${#APKS[@]}." >&2
+            printf '  %s\n' "${APKS[@]:-<none>}" >&2
+            exit 1
+          fi
+          for APK in "${APKS[@]}"; do
+            test -s "$APK"
             echo "Validating $APK"
             "$APKSIGNER" verify --verbose --print-certs "$APK"
             BADGING="$($AAPT dump badging "$APK")"
