@@ -6,7 +6,7 @@ on:
       build_version:
         description: "Versao do APK, por exemplo 1.0.0-test2"
         required: true
-        default: "1.0.1-test4"
+        default: "1.0.1-test5"
         type: string
 
 permissions:

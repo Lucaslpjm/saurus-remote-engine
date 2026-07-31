@@ -199,54 +199,203 @@ class _SaurusMobileHeader extends StatelessWidget {
 
 
 def patch_theme(root: Path) -> None:
+    """Apply the Saurus mobile theme without depending on one exact upstream block."""
     path = root / "flutter/lib/common.dart"
     content = read_text(path)
-    if f"{MARKER}_THEME" in content:
+    theme_marker = f"{MARKER}_THEME"
+    robust_marker = "SAURUS_ANDROID_THEME_PATCH_V3"
+
+    if theme_marker in content:
+        for required in (
+            robust_marker,
+            f"primary: Color({NAVY})",
+            f"secondary: Color({GOLD})",
+            "cardColor: Colors.white",
+        ):
+            if required not in content:
+                raise UiPatchError(f"{path}: incomplete idempotent theme contract: {required}")
         return
 
-    replacements = [
-        (
-            "    scaffoldBackgroundColor: Colors.white,",
-            f"    scaffoldBackgroundColor: const Color({BACKGROUND}), // {MARKER}_THEME",
-        ),
-        (
-            """    appBarTheme: AppBarTheme(
-      shadowColor: Colors.transparent,
-    ),""",
-            f"""    appBarTheme: const AppBarTheme(
+    light_anchor = "  static ThemeData lightTheme = ThemeData("
+    dark_anchor = "  static ThemeData darkTheme = ThemeData("
+    light_start = content.find(light_anchor)
+    dark_start = content.find(dark_anchor, light_start + len(light_anchor))
+    if light_start < 0 or dark_start < 0 or dark_start <= light_start:
+        raise UiPatchError(f"{path}: light/dark ThemeData boundaries were not found")
+
+    block = content[light_start:dark_start]
+
+    def insert_after_property(source: str, property_name: str, insertion: str) -> str:
+        match = re.search(
+            rf"(?m)^    {re.escape(property_name)}:[^\n]*$",
+            source,
+        )
+        if match is None:
+            raise UiPatchError(
+                f"{path}: insertion anchor property was not found: {property_name}"
+            )
+        return source[: match.end()] + "\n" + insertion + source[match.end() :]
+
+    def set_line_property(
+        source: str,
+        property_name: str,
+        replacement: str,
+        *,
+        insert_after: str | None = None,
+    ) -> str:
+        pattern = rf"(?m)^    {re.escape(property_name)}:[^\n]*$"
+        updated, count = re.subn(pattern, replacement, source, count=1)
+        if count == 1:
+            return updated
+        if insert_after is None:
+            raise UiPatchError(f"{path}: theme property was not found: {property_name}")
+        return insert_after_property(source, insert_after, replacement)
+
+    def constructor_property_span(source: str, property_name: str) -> tuple[int, int] | None:
+        match = re.search(
+            rf"(?m)^    {re.escape(property_name)}:\s*",
+            source,
+        )
+        if match is None:
+            return None
+        opening = source.find("(", match.end())
+        if opening < 0:
+            raise UiPatchError(f"{path}: constructor opening was not found: {property_name}")
+
+        depth = 0
+        quote: str | None = None
+        escaped = False
+        line_comment = False
+        block_comment = False
+        closing = -1
+        index = opening
+        while index < len(source):
+            char = source[index]
+            next_char = source[index + 1] if index + 1 < len(source) else ""
+
+            if line_comment:
+                if char == "\n":
+                    line_comment = False
+                index += 1
+                continue
+            if block_comment:
+                if char == "*" and next_char == "/":
+                    block_comment = False
+                    index += 2
+                    continue
+                index += 1
+                continue
+            if quote is not None:
+                if escaped:
+                    escaped = False
+                elif char == "\\":
+                    escaped = True
+                elif char == quote:
+                    quote = None
+                index += 1
+                continue
+            if char == "/" and next_char == "/":
+                line_comment = True
+                index += 2
+                continue
+            if char == "/" and next_char == "*":
+                block_comment = True
+                index += 2
+                continue
+            if char in ("'", '"'):
+                quote = char
+                index += 1
+                continue
+            if char == "(":
+                depth += 1
+            elif char == ")":
+                depth -= 1
+                if depth == 0:
+                    closing = index
+                    break
+            index += 1
+
+        if closing < 0:
+            raise UiPatchError(f"{path}: constructor closing was not found: {property_name}")
+
+        end = closing + 1
+        while end < len(source) and source[end] in " \t":
+            end += 1
+        if end >= len(source) or source[end] != ",":
+            raise UiPatchError(f"{path}: constructor property has no trailing comma: {property_name}")
+        end += 1
+        while end < len(source) and source[end] != "\n":
+            end += 1
+        return match.start(), end
+
+    def set_constructor_property(
+        source: str,
+        property_name: str,
+        replacement: str,
+        *,
+        insert_after: str,
+    ) -> str:
+        span = constructor_property_span(source, property_name)
+        if span is None:
+            return insert_after_property(source, insert_after, replacement)
+        start, end = span
+        return source[:start] + replacement + source[end:]
+
+    block = set_line_property(
+        block,
+        "scaffoldBackgroundColor",
+        f"    scaffoldBackgroundColor: const Color({BACKGROUND}), // {theme_marker} {robust_marker}",
+        insert_after="brightness",
+    )
+
+    app_bar = f"""    appBarTheme: const AppBarTheme(
       backgroundColor: Color({NAVY}),
       foregroundColor: Colors.white,
       surfaceTintColor: Colors.transparent,
       elevation: 0,
       shadowColor: Colors.transparent,
-    ),""",
-        ),
-        ("    cardColor: grayBg,", "    cardColor: Colors.white,"),
-        (
-            """    colorScheme: ColorScheme.light(
-        primary: Colors.blue, secondary: accent, background: grayBg),""",
-            f"""    colorScheme: const ColorScheme.light(
-        primary: Color({NAVY}),
-        secondary: Color({GOLD}),
-        background: Color({BACKGROUND}),
-        surface: Colors.white),""",
-        ),
-    ]
-    for old, new in replacements:
-        if content.count(old) != 1:
-            raise UiPatchError(f"{path}: theme contract not found exactly once: {old[:80]!r}")
-        content = content.replace(old, new, 1)
+    ),"""
+    block = set_constructor_property(
+        block,
+        "appBarTheme",
+        app_bar,
+        insert_after="scaffoldBackgroundColor",
+    )
 
-    button_old = """    elevatedButtonTheme: ElevatedButtonThemeData(
-      style: ElevatedButton.styleFrom(
-        backgroundColor: MyTheme.accent,"""
-    button_new = f"""    elevatedButtonTheme: ElevatedButtonThemeData(
-      style: ElevatedButton.styleFrom(
-        backgroundColor: MyTheme.accent,
-        foregroundColor: const Color({NAVY}),"""
-    if content.count(button_old) < 1:
-        raise UiPatchError(f"{path}: light elevated button contract not found")
-    content = content.replace(button_old, button_new, 1)
+    block = set_line_property(
+        block,
+        "cardColor",
+        "    cardColor: Colors.white,",
+        insert_after="appBarTheme",
+    )
+
+    color_scheme = f"""    colorScheme: const ColorScheme.light(
+      primary: Color({NAVY}),
+      secondary: Color({GOLD}),
+      background: Color({BACKGROUND}),
+      surface: Colors.white,
+    ),"""
+    block = set_constructor_property(
+        block,
+        "colorScheme",
+        color_scheme,
+        insert_after="cardColor",
+    )
+
+    if f"foregroundColor: const Color({NAVY})" not in block:
+        button_match = re.search(
+            r"(?m)^(\s{8}backgroundColor:\s*(?:MyTheme\.)?accent,\s*)$",
+            block,
+        )
+        if button_match is not None:
+            insertion = (
+                button_match.group(1)
+                + "\n"
+                + f"        foregroundColor: const Color({NAVY}),"
+            )
+            block = block[: button_match.start()] + insertion + block[button_match.end() :]
+
+    content = content[:light_start] + block + content[dark_start:]
     write_text(path, content)
 
 
@@ -700,14 +849,90 @@ def apply_ui_v2(root: Path) -> None:
 
 
 def self_test() -> None:
-    # The executable workflow performs the definitive test against the real
-    # RustDesk 1.4.9 tree. This smoke test protects encoding and helper logic.
     with tempfile.TemporaryDirectory() as temp:
         root = Path(temp)
         sample = root / "sample.txt"
         write_text(sample, "A\r\nB  ")
         if read_text(sample) != "A\nB\n":
             raise UiPatchError("UTF-8/LF helper self-test failed")
+
+        fixtures = [
+            """class MyTheme {
+  static ThemeData lightTheme = ThemeData(
+    brightness: Brightness.light,
+    scaffoldBackgroundColor: Colors.white,
+    appBarTheme: AppBarTheme(
+      shadowColor: Colors.transparent,
+    ),
+    cardColor: grayBg,
+    colorScheme: ColorScheme.light(
+        primary: Colors.blue, secondary: accent, background: grayBg),
+    elevatedButtonTheme: ElevatedButtonThemeData(
+      style: ElevatedButton.styleFrom(
+        backgroundColor: MyTheme.accent,
+      ),
+    ),
+  );
+  static ThemeData darkTheme = ThemeData(
+    brightness: Brightness.dark,
+  );
+}
+""",
+            """class MyTheme {
+  static ThemeData lightTheme = ThemeData(
+    brightness: Brightness.light,
+    scaffoldBackgroundColor: const Color(0xFFF4F5F7),
+    cardColor: const Color(0xFFF4F5F7),
+    visualDensity: VisualDensity.adaptivePlatformDensity,
+  );
+  static ThemeData darkTheme = ThemeData(
+    brightness: Brightness.dark,
+  );
+}
+""",
+            """class MyTheme {
+  static ThemeData lightTheme = ThemeData(
+    brightness: Brightness.light,
+    scaffoldBackgroundColor: const Color(0xFFF4F5F7), // existing customization
+    appBarTheme: const AppBarTheme(
+      backgroundColor: Color(0xFF123456),
+      shadowColor: Colors.transparent,
+    ),
+    colorScheme: const ColorScheme.light(
+      primary: Color(0xFF123456),
+      secondary: Color(0xFF654321),
+    ),
+  );
+  static ThemeData darkTheme = ThemeData(
+    brightness: Brightness.dark,
+  );
+}
+""",
+        ]
+
+        for number, fixture in enumerate(fixtures, start=1):
+            fixture_root = root / f"fixture-{number}"
+            common = fixture_root / "flutter/lib/common.dart"
+            write_text(common, fixture)
+            patch_theme(fixture_root)
+            patch_theme(fixture_root)
+            themed = read_text(common)
+            for required in (
+                "SAURUS_ANDROID_THEME_PATCH_V3",
+                f"primary: Color({NAVY})",
+                f"secondary: Color({GOLD})",
+                "cardColor: Colors.white",
+                f"backgroundColor: Color({NAVY})",
+            ):
+                if required not in themed:
+                    raise UiPatchError(
+                        f"Theme variant self-test {number} failed: {required}"
+                    )
+            if themed.count(f"{MARKER}_THEME") != 1:
+                raise UiPatchError(
+                    f"Theme variant self-test {number} is not idempotent"
+                )
+
         if not all(ord(ch) < 128 for ch in Path(__file__).read_text(encoding="utf-8")):
             raise UiPatchError("The UI patch source must remain ASCII-only")
 
