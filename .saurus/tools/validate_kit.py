@@ -530,6 +530,20 @@ stale_final_ui_markers = [
 for stale_final_ui_marker in stale_final_ui_markers:
     if stale_final_ui_marker in final_ui_source or stale_final_ui_marker in verify_customization_source:
         error(f"Marcador final versionado ainda presente: {stale_final_ui_marker}")
+# SAURUS_REMOTE_WORKFLOW_FINAL_UI_GATE_CONTRACT_V4_BEGIN
+required_final_ui_gate_markers = (
+    "SAURUS_REMOTE_WORKFLOW_FINAL_UI_GATE_V4",
+    "finalize_saurus_production_ui.py",
+    "--source-root $PWD --check-only",
+    "SAURUS_REMOTE_PRODUCTION_UI_FINAL",
+)
+for marker in required_final_ui_gate_markers:
+    if marker not in workflow:
+        error(f"Contrato final da interface ausente no workflow: {marker}")
+legacy_ui_guard = "A interface antiga ainda esta presente " + "antes do build."
+if legacy_ui_guard in workflow:
+    error("A guarda textual legada da interface ainda esta presente no workflow.")
+# SAURUS_REMOTE_WORKFLOW_FINAL_UI_GATE_CONTRACT_V4_END
 print("Saurus Remote customization kit - validacao estatica")
 print(f"Raiz: {ROOT}")
 print(f"Arquivos: {sum(1 for p in ROOT.rglob('*') if p.is_file())}")

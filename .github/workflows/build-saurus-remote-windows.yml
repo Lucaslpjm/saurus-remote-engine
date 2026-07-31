@@ -251,26 +251,44 @@ jobs:
             --triplet x64-windows-static \
             --x-install-root="$VCPKG_ROOT/installed"
 
-      - name: Remove stale Flutter Windows output
+      - name: Remove stale Flutter Windows output and verify final UI contract
         shell: pwsh
         run: |
-          $paths = @(
+          # SAURUS_REMOTE_WORKFLOW_FINAL_UI_GATE_V4
+          $stalePaths = @(
             '.\flutter\build\windows',
             '.\flutter\.dart_tool\flutter_build'
           )
-          foreach ($path in $paths) {
-            if (Test-Path -LiteralPath $path) {
-              Remove-Item -LiteralPath $path -Recurse -Force
-              Write-Host "Removido cache antigo: $path"
+          foreach ($stalePath in $stalePaths) {
+            if (Test-Path -LiteralPath $stalePath) {
+              Remove-Item -LiteralPath $stalePath -Recurse -Force
+              Write-Host "Removido cache antigo: $stalePath"
             }
           }
-          $desktopHomeContent = Get-Content -LiteralPath .\flutter\lib\desktop\pages\desktop_home_page.dart -Raw
-          if ($desktopHomeContent -notmatch 'SAURUS_REMOTE_PRODUCTION_UI_FINAL') {
-            throw 'O marcador da UI final nao esta presente antes do build.'
+
+          $finalizerPath = '.\.saurus\tools\finalize_saurus_production_ui.py'
+          if (-not (Test-Path -LiteralPath $finalizerPath -PathType Leaf)) {
+            throw "Finalizador da interface de producao nao encontrado: $finalizerPath"
           }
-          if ($desktopHomeContent -match 'Diagn[oó]stico r[aá]pido|Configura[cç][oõ]es de rede|Conectar e acessar sess[oõ]es recentes') {
-            throw 'A interface antiga ainda esta presente antes do build.'
+
+          python $finalizerPath --source-root $PWD --check-only
+          if ($LASTEXITCODE -ne 0) {
+            throw 'O contrato final da interface falhou antes do build.'
           }
+
+          $desktopHomePath = '.\flutter\lib\desktop\pages\desktop_home_page.dart'
+          if (-not (Test-Path -LiteralPath $desktopHomePath -PathType Leaf)) {
+            throw "Arquivo principal da interface nao encontrado: $desktopHomePath"
+          }
+
+          $utf8Strict = New-Object System.Text.UTF8Encoding($false, $true)
+          $resolvedDesktopHomePath = (Resolve-Path -LiteralPath $desktopHomePath).Path
+          $desktopHomeContent = [System.IO.File]::ReadAllText($resolvedDesktopHomePath, $utf8Strict)
+          if (-not $desktopHomeContent.Contains('SAURUS_REMOTE_PRODUCTION_UI_FINAL')) {
+            throw 'O marcador estavel da interface final nao esta presente antes do build.'
+          }
+
+          Write-Host '[OK] Cache Flutter removido e contrato final da interface aprovado.'
       - name: Build customized RustDesk core and Flutter UI
         shell: pwsh
         run: |

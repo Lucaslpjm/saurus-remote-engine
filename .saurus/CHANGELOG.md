@@ -1,3 +1,9 @@
+## 1.4.9-saurus.3.2.3.4
+
+- Remove a guarda textual legada e redundante do workflow.
+- Usa finalize_saurus_production_ui.py --check-only como fonte unica de validacao.
+- Exige o marcador estavel SAURUS_REMOTE_PRODUCTION_UI_FINAL.
+- Mantem a limpeza do cache Flutter sem procurar textos em comentarios ou codigo residual.
 ## 1.4.9-saurus.3.2.3.3
 
 - Substitui marcadores versionados por SAURUS_REMOTE_PRODUCTION_UI_FINAL.
