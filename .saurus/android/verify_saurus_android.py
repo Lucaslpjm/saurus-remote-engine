@@ -75,7 +75,7 @@ def verify(root: Path, kit_root: Path) -> None:
 
     server_page = read(root / "flutter/lib/mobile/pages/server_page.dart")
     for value, description in [
-        ('final title = "Este dispositivo"', "host page title"),
+        ('final title = "Dispositivo"', "host page title"),
         (f'{MARKER}_LOCKED_SECURITY_UI', "locked security menu"),
         (f'{MARKER}_SHOW_FIXED_PASSWORD', "fixed password visibility"),
         ("title: 'Este dispositivo'", "device card title"),
