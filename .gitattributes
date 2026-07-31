@@ -5,3 +5,7 @@
 .saurus/tools/finalize_saurus_production_ui.py text eol=lf
 .saurus/tests/test_production_ui_marker_contract.py text eol=lf
 .saurus/scripts/Verify-SaurusCustomization.ps1 text eol=lf
+.saurus/android/*.py text eol=lf
+.saurus/android/*.json text eol=lf
+.saurus/android/tests/*.py text eol=lf
+.github/workflows/build-saurus-remote-android.yml text eol=lf
