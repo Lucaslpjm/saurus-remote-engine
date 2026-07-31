@@ -20,6 +20,8 @@ GOLD = "0xFFD8B62A"
 BACKGROUND = "0xFFF4F6F8"
 BORDER = "0xFFE2E7EC"
 MUTED = "0xFF667085"
+XML_ATTRIBUTE_PATCH_MARKER = "SAURUS_ANDROID_XML_ATTRIBUTE_PATCH_V5"
+ANDROID_NAMESPACE = "http://schemas.android.com/apk/res/android"
 
 
 class UiPatchError(RuntimeError):
@@ -858,6 +860,63 @@ def patch_settings_title(root: Path) -> None:
     write_text(path, content)
 
 
+def upsert_xml_attribute_in_start_tag(
+    content: str,
+    *,
+    tag_name: str,
+    attribute: str,
+    value: str,
+    path: Path,
+    selector: str | None = None,
+    indent: str = "    ",
+) -> str:
+    """Set one XML attribute while removing legacy or duplicate copies.
+
+    The input may already contain the attribute, including more than once due to
+    an interrupted older patch. Working on the start tag before parsing allows
+    this helper to repair that invalid intermediate state deterministically.
+    """
+    pattern = re.compile(
+        rf"<{re.escape(tag_name)}\b(?P<body>.*?)(?P<close>/?)>",
+        re.DOTALL,
+    )
+    matches = [
+        match
+        for match in pattern.finditer(content)
+        if selector is None or selector in match.group(0)
+    ]
+    if len(matches) != 1:
+        raise UiPatchError(
+            f"{path}: expected one <{tag_name}> start tag for {attribute}, "
+            f"found {len(matches)}"
+        )
+
+    match = matches[0]
+    start_tag = match.group(0)
+    attribute_pattern = re.compile(
+        rf"\s+{re.escape(attribute)}\s*=\s*(?P<quote>[\"'])(?P<value>.*?)(?P=quote)",
+        re.DOTALL,
+    )
+    cleaned = attribute_pattern.sub("", start_tag)
+    stripped = cleaned.rstrip()
+    closing = "/>" if stripped.endswith("/>") else ">"
+    prefix = stripped[: -len(closing)].rstrip()
+    replacement = f'{prefix}\n{indent}{attribute}="{value}"{closing}'
+    return content[: match.start()] + replacement + content[match.end() :]
+
+
+def ensure_single_xml_marker(content: str, marker: str) -> str:
+    marker_pattern = re.compile(rf"\s*<!--\s*{re.escape(marker)}\s*-->\s*")
+    content = marker_pattern.sub("\n", content).lstrip("\n")
+    comment = f"<!-- {marker} -->"
+    if content.startswith("<?xml"):
+        end = content.find("?>")
+        if end < 0:
+            raise UiPatchError("Malformed XML declaration while adding Saurus marker")
+        return content[: end + 2] + "\n" + comment + "\n" + content[end + 2 :].lstrip("\n")
+    return comment + "\n" + content
+
+
 def patch_accessibility_resources(root: Path) -> None:
     values = root / "flutter/android/app/src/main/res/values/saurus_accessibility_strings.xml"
     write_text(
@@ -869,31 +928,52 @@ def patch_accessibility_resources(root: Path) -> None:
     )
 
     manifest = root / "flutter/android/app/src/main/AndroidManifest.xml"
-    content = read_text(manifest)
-    if f"{MARKER}_ACCESSIBILITY_METADATA" not in content:
-        old = '            android:label="Saurus Remote - Controle de entrada"\n            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">'
-        new = f'''            android:label="Saurus Remote - Controle de entrada"
-            android:description="@string/saurus_accessibility_description"
-            android:icon="@mipmap/ic_launcher"
-            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">\n            <!-- {MARKER}_ACCESSIBILITY_METADATA -->'''
-        if content.count(old) != 1:
-            raise UiPatchError(f"{manifest}: accessibility service contract not found")
-        content = content.replace(old, new, 1)
-        write_text(manifest, content)
+    manifest_content = read_text(manifest)
+    manifest_content = upsert_xml_attribute_in_start_tag(
+        manifest_content,
+        tag_name="service",
+        attribute="android:description",
+        value="@string/saurus_accessibility_description",
+        path=manifest,
+        selector='android.permission.BIND_ACCESSIBILITY_SERVICE',
+        indent="            ",
+    )
+    manifest_content = upsert_xml_attribute_in_start_tag(
+        manifest_content,
+        tag_name="service",
+        attribute="android:icon",
+        value="@mipmap/ic_launcher",
+        path=manifest,
+        selector='android.permission.BIND_ACCESSIBILITY_SERVICE',
+        indent="            ",
+    )
+    manifest_content = ensure_single_xml_marker(
+        manifest_content,
+        f"{MARKER}_ACCESSIBILITY_METADATA",
+    )
+    write_text(manifest, manifest_content)
 
     config = root / "flutter/android/app/src/main/res/xml/accessibility_service_config.xml"
     config_content = read_text(config)
-    if f"{MARKER}_ACCESSIBILITY_DESCRIPTION" not in config_content:
-        pattern = r"(<accessibility-service\b)"
-        replacement = (
-            f'<!-- {MARKER}_ACCESSIBILITY_DESCRIPTION -->\n'
-            r'\1'
-            '\n    android:description="@string/saurus_accessibility_description"'
-        )
-        updated, count = re.subn(pattern, replacement, config_content, count=1)
-        if count != 1:
-            raise UiPatchError(f"{config}: accessibility-service root not found")
-        write_text(config, updated)
+    config_content = upsert_xml_attribute_in_start_tag(
+        config_content,
+        tag_name="accessibility-service",
+        attribute="android:description",
+        value="@string/saurus_accessibility_description",
+        path=config,
+        indent="    ",
+    )
+    config_content = ensure_single_xml_marker(
+        config_content,
+        f"{MARKER}_ACCESSIBILITY_DESCRIPTION",
+    )
+    write_text(config, config_content)
+
+    for xml_path in (manifest, config, values):
+        try:
+            ET.parse(xml_path)
+        except ET.ParseError as exc:
+            raise UiPatchError(f"{xml_path}: invalid XML after accessibility patch: {exc}") from exc
 
 
 def apply_ui_v2(root: Path) -> None:
@@ -1052,6 +1132,8 @@ class ClientInfo"""
 <application>
 <service
             android:label="Saurus Remote - Controle de entrada"
+            android:description="@string/legacy_accessibility_description"
+            android:icon="@drawable/legacy_icon"
             android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
 </service>
 </application>
@@ -1060,15 +1142,46 @@ class ClientInfo"""
         write_text(
             accessibility,
             """<accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
+    android:description="@string/legacy_accessibility_description"
+    android:description="@string/interrupted_duplicate_description"
     android:accessibilityEventTypes="typeAllMask" />""",
         )
         patch_accessibility_resources(xml_root)
+        first_manifest = manifest.read_bytes()
+        first_accessibility = accessibility.read_bytes()
         patch_accessibility_resources(xml_root)
-        ET.parse(manifest)
-        ET.parse(accessibility)
+        if manifest.read_bytes() != first_manifest:
+            raise UiPatchError("Accessibility manifest patch is not byte-idempotent")
+        if accessibility.read_bytes() != first_accessibility:
+            raise UiPatchError("Accessibility config patch is not byte-idempotent")
+
+        manifest_root = ET.parse(manifest).getroot()
+        config_root = ET.parse(accessibility).getroot()
+        android_description = f"{{{ANDROID_NAMESPACE}}}description"
+        android_icon = f"{{{ANDROID_NAMESPACE}}}icon"
+        android_permission = f"{{{ANDROID_NAMESPACE}}}permission"
+        services = [
+            item
+            for item in manifest_root.iter("service")
+            if item.get(android_permission) == "android.permission.BIND_ACCESSIBILITY_SERVICE"
+        ]
+        if len(services) != 1:
+            raise UiPatchError("Accessibility manifest service lookup self-test failed")
+        if services[0].get(android_description) != "@string/saurus_accessibility_description":
+            raise UiPatchError("Accessibility manifest description upsert self-test failed")
+        if services[0].get(android_icon) != "@mipmap/ic_launcher":
+            raise UiPatchError("Accessibility manifest icon upsert self-test failed")
+        if config_root.get(android_description) != "@string/saurus_accessibility_description":
+            raise UiPatchError("Accessibility config description upsert self-test failed")
+
+        manifest_text = read_text(manifest)
         xml_text = read_text(accessibility)
+        if manifest_text.count(f"{MARKER}_ACCESSIBILITY_METADATA") != 1:
+            raise UiPatchError("Accessibility manifest marker is not idempotent")
         if xml_text.count(f"{MARKER}_ACCESSIBILITY_DESCRIPTION") != 1:
             raise UiPatchError("Accessibility XML marker is not idempotent")
+        if xml_text.count("android:description=") != 1:
+            raise UiPatchError("Accessibility XML duplicate-attribute regression")
 
         if not all(ord(ch) < 128 for ch in Path(__file__).read_text(encoding="utf-8")):
             raise UiPatchError("The UI patch source must remain ASCII-only")

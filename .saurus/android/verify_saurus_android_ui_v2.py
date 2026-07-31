@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import argparse
 import sys
+import xml.etree.ElementTree as ET
 from pathlib import Path
 
 MARKER = "SAURUS_ANDROID_UI_V2"
+ANDROID_NAMESPACE = "http://schemas.android.com/apk/res/android"
 
 
 class UiVerificationError(RuntimeError):
@@ -77,24 +79,62 @@ def verify_ui_v2(root: Path) -> None:
     ]:
         require(common, marker, description)
 
-    manifest = read(root / "flutter/android/app/src/main/AndroidManifest.xml")
-    for marker, description in [
-        (f"{MARKER}_ACCESSIBILITY_METADATA", "accessibility metadata marker"),
-        ('android:description="@string/saurus_accessibility_description"', "accessibility description"),
-        ('android:icon="@mipmap/ic_launcher"', "accessibility icon"),
-    ]:
-        require(manifest, marker, description)
+    manifest_path = root / "flutter/android/app/src/main/AndroidManifest.xml"
+    config_path = root / "flutter/android/app/src/main/res/xml/accessibility_service_config.xml"
+    strings_path = root / "flutter/android/app/src/main/res/values/saurus_accessibility_strings.xml"
 
-    accessibility = read(
-        root / "flutter/android/app/src/main/res/xml/accessibility_service_config.xml"
-    )
-    require(accessibility, f"{MARKER}_ACCESSIBILITY_DESCRIPTION", "accessibility config description")
+    manifest = read(manifest_path)
+    accessibility = read(config_path)
+    strings = read(strings_path)
+    require(manifest, f"{MARKER}_ACCESSIBILITY_METADATA", "accessibility metadata marker")
+    require(accessibility, f"{MARKER}_ACCESSIBILITY_DESCRIPTION", "accessibility config marker")
+    if manifest.count(f"{MARKER}_ACCESSIBILITY_METADATA") != 1:
+        raise UiVerificationError("Accessibility manifest marker must occur exactly once")
+    if accessibility.count(f"{MARKER}_ACCESSIBILITY_DESCRIPTION") != 1:
+        raise UiVerificationError("Accessibility config marker must occur exactly once")
 
-    strings = read(
-        root / "flutter/android/app/src/main/res/values/saurus_accessibility_strings.xml"
-    )
-    require(strings, "Saurus Remote", "Saurus accessibility description")
-    require(strings, "sessao de suporte remoto autorizada", "permission purpose disclosure")
+    try:
+        manifest_root = ET.parse(manifest_path).getroot()
+        config_root = ET.parse(config_path).getroot()
+        strings_root = ET.parse(strings_path).getroot()
+    except ET.ParseError as exc:
+        raise UiVerificationError(f"Invalid customized Android XML: {exc}") from exc
+
+    android_permission = f"{{{ANDROID_NAMESPACE}}}permission"
+    android_description = f"{{{ANDROID_NAMESPACE}}}description"
+    android_icon = f"{{{ANDROID_NAMESPACE}}}icon"
+    services = [
+        item
+        for item in manifest_root.iter("service")
+        if item.get(android_permission) == "android.permission.BIND_ACCESSIBILITY_SERVICE"
+    ]
+    if len(services) != 1:
+        raise UiVerificationError(
+            f"Expected one accessibility service in AndroidManifest.xml, found {len(services)}"
+        )
+    service = services[0]
+    if service.get(android_description) != "@string/saurus_accessibility_description":
+        raise UiVerificationError("Accessibility service description is not the Saurus resource")
+    if service.get(android_icon) != "@mipmap/ic_launcher":
+        raise UiVerificationError("Accessibility service icon is not the Saurus launcher icon")
+
+    if config_root.tag != "accessibility-service":
+        raise UiVerificationError(f"Unexpected accessibility config root: {config_root.tag}")
+    if config_root.get(android_description) != "@string/saurus_accessibility_description":
+        raise UiVerificationError("Accessibility config description is not the Saurus resource")
+
+    descriptions = [
+        item
+        for item in strings_root.findall("string")
+        if item.get("name") == "saurus_accessibility_description"
+    ]
+    if len(descriptions) != 1:
+        raise UiVerificationError(
+            f"Expected one Saurus accessibility string, found {len(descriptions)}"
+        )
+    description_text = descriptions[0].text or ""
+    require(description_text, "Saurus Remote", "Saurus accessibility description")
+    require(description_text, "sessao de suporte remoto autorizada", "permission purpose disclosure")
 
     for relative in [
         "flutter/lib/mobile/pages/home_page.dart",

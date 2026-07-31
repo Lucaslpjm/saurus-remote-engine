@@ -139,6 +139,7 @@ def validate(kit_root: Path, workflow_path: Path) -> None:
     ]:
         require(base_verify, marker, "stage-aware host-title verifier")
     require(ui_verify, 'final title = "Dispositivo"', "final UI title verifier")
+    require(ui_verify, "ET.parse(config_path)", "parsed accessibility XML verifier")
     require(base_apply, "def patch_host_title(path: Path)", "stage-aware base title patch")
     require(base_apply, "if ui_marker in content", "base patch final-stage guard")
     require(ui_apply, "def patch_final_host_title", "idempotent final title patch")
@@ -156,6 +157,9 @@ def validate(kit_root: Path, workflow_path: Path) -> None:
         "showSaurusInputPermissionGuide",
         "xml.etree.ElementTree as ET",
         "ACCESSIBILITY_DESCRIPTION",
+        "SAURUS_ANDROID_XML_ATTRIBUTE_PATCH_V5",
+        "def upsert_xml_attribute_in_start_tag",
+        "Accessibility XML duplicate-attribute regression",
     ]:
         require(ui_apply, marker, "robust Android UI patch")
 
