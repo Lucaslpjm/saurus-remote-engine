@@ -21,6 +21,8 @@ BACKGROUND = "0xFFF4F6F8"
 BORDER = "0xFFE2E7EC"
 MUTED = "0xFF667085"
 XML_ATTRIBUTE_PATCH_MARKER = "SAURUS_ANDROID_XML_ATTRIBUTE_PATCH_V5"
+LAUNCHER_PATCH_MARKER = "SAURUS_ANDROID_ADAPTIVE_LAUNCHER_V1"
+INCOMING_ACCEPT_MARKER = "SAURUS_ANDROID_INCOMING_ACCEPT_V1"
 ANDROID_NAMESPACE = "http://schemas.android.com/apk/res/android"
 
 
@@ -917,6 +919,118 @@ def ensure_single_xml_marker(content: str, marker: str) -> str:
     return comment + "\n" + content
 
 
+def patch_incoming_accept_dialog_content(content: str, path: Path) -> tuple[str, bool]:
+    """Make both incoming-session decisions explicit and always visible."""
+    if INCOMING_ACCEPT_MARKER in content:
+        for required in (
+            "label: const Text('Dispensar')",
+            "label: const Text('Aceitar')",
+            "onPressed: cancel",
+            "onPressed: submit",
+        ):
+            if required not in content:
+                raise UiPatchError(f"{path}: incomplete incoming-access action contract: {required}")
+        return content, False
+
+    old = '''      actions: [
+        TextButton(onPressed: cancel, child: Text(translate("Dismiss"))),
+        ElevatedButton(onPressed: submit, child: Text(translate("Accept"))),
+      ],'''
+    count = content.count(old)
+    if count != 1:
+        raise UiPatchError(
+            f"{path}: expected one incoming access action block, found {count}"
+        )
+    new = f'''      actions: [
+        OutlinedButton.icon(
+          onPressed: cancel,
+          style: OutlinedButton.styleFrom(
+            foregroundColor: const Color({NAVY}),
+            side: const BorderSide(color: Color({BORDER})),
+            minimumSize: const Size(108, 46),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          ),
+          icon: const Icon(Icons.close, size: 18),
+          label: const Text('Dispensar'),
+        ),
+        ElevatedButton.icon(
+          onPressed: submit,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: const Color({GOLD}),
+            foregroundColor: const Color({NAVY}),
+            minimumSize: const Size(108, 46),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            elevation: 0,
+          ),
+          icon: const Icon(Icons.check, size: 18),
+          label: const Text('Aceitar'),
+        ),
+      ], // {INCOMING_ACCEPT_MARKER}'''
+    return content.replace(old, new, 1), True
+
+
+def patch_incoming_accept_dialog(root: Path) -> None:
+    path = root / "flutter/lib/models/server_model.dart"
+    content = read_text(path)
+    content, changed = patch_incoming_accept_dialog_content(content, path)
+    if changed:
+        write_text(path, content)
+
+
+def patch_launcher_resources(root: Path) -> None:
+    """Replace legacy and adaptive launcher contracts with Saurus resources."""
+    res = root / "flutter/android/app/src/main/res"
+    colors = res / "values/saurus_launcher_colors.xml"
+    adaptive = res / "mipmap-anydpi-v26/ic_launcher.xml"
+    adaptive_round = res / "mipmap-anydpi-v26/ic_launcher_round.xml"
+
+    write_text(
+        colors,
+        '''<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="saurus_launcher_background">#14213D</color>
+</resources>''',
+    )
+    adaptive_content = f'''<?xml version="1.0" encoding="utf-8"?>
+<!-- {LAUNCHER_PATCH_MARKER} -->
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@color/saurus_launcher_background" />
+    <foreground android:drawable="@mipmap/saurus_launcher_foreground" />
+</adaptive-icon>'''
+    write_text(adaptive, adaptive_content)
+    write_text(adaptive_round, adaptive_content)
+
+    manifest = root / "flutter/android/app/src/main/AndroidManifest.xml"
+    manifest_content = read_text(manifest)
+    manifest_content = upsert_xml_attribute_in_start_tag(
+        manifest_content,
+        tag_name="application",
+        attribute="android:icon",
+        value="@mipmap/ic_launcher",
+        path=manifest,
+        indent="        ",
+    )
+    manifest_content = upsert_xml_attribute_in_start_tag(
+        manifest_content,
+        tag_name="application",
+        attribute="android:roundIcon",
+        value="@mipmap/ic_launcher_round",
+        path=manifest,
+        indent="        ",
+    )
+    manifest_content = ensure_single_xml_marker(
+        manifest_content,
+        LAUNCHER_PATCH_MARKER,
+    )
+    write_text(manifest, manifest_content)
+
+    for path in (manifest, colors, adaptive, adaptive_round):
+        try:
+            ET.parse(path)
+        except ET.ParseError as exc:
+            raise UiPatchError(f"{path}: invalid XML after launcher patch: {exc}") from exc
+
+
 def patch_accessibility_resources(root: Path) -> None:
     values = root / "flutter/android/app/src/main/res/values/saurus_accessibility_strings.xml"
     write_text(
@@ -980,7 +1094,9 @@ def apply_ui_v2(root: Path) -> None:
     patch_home_page(root)
     patch_theme(root)
     patch_server_page(root)
+    patch_incoming_accept_dialog(root)
     patch_settings_title(root)
+    patch_launcher_resources(root)
     patch_accessibility_resources(root)
 
 
@@ -1123,13 +1239,48 @@ class ClientInfo"""
                     f"Dart class boundary self-test failed: {required}"
                 )
 
+        incoming_fixture = '''void showLoginDialog(Client client) {
+  cancel() {}
+  submit() {}
+  return CustomAlertDialog(
+      content: const Text('request'),
+      actions: [
+        TextButton(onPressed: cancel, child: Text(translate("Dismiss"))),
+        ElevatedButton(onPressed: submit, child: Text(translate("Accept"))),
+      ],
+  );
+}'''
+        incoming_fixture, changed = patch_incoming_accept_dialog_content(
+            incoming_fixture,
+            root / "server-model-fixture.dart",
+        )
+        if not changed:
+            raise UiPatchError("Incoming-access action self-test did not apply")
+        incoming_second, changed = patch_incoming_accept_dialog_content(
+            incoming_fixture,
+            root / "server-model-fixture.dart",
+        )
+        if changed or incoming_second != incoming_fixture:
+            raise UiPatchError("Incoming-access action patch is not idempotent")
+        for required in (
+            "label: const Text('Dispensar')",
+            "label: const Text('Aceitar')",
+            "onPressed: cancel",
+            "onPressed: submit",
+            INCOMING_ACCEPT_MARKER,
+        ):
+            if required not in incoming_fixture:
+                raise UiPatchError(
+                    f"Incoming-access action self-test failed: {required}"
+                )
+
         xml_root = root / "xml-fixture"
         manifest = xml_root / "flutter/android/app/src/main/AndroidManifest.xml"
         accessibility = xml_root / "flutter/android/app/src/main/res/xml/accessibility_service_config.xml"
         write_text(
             manifest,
             """<manifest xmlns:android="http://schemas.android.com/apk/res/android">
-<application>
+<application android:icon="@mipmap/legacy" android:roundIcon="@mipmap/legacy_round">
 <service
             android:label="Saurus Remote - Controle de entrada"
             android:description="@string/legacy_accessibility_description"
@@ -1146,9 +1297,11 @@ class ClientInfo"""
     android:description="@string/interrupted_duplicate_description"
     android:accessibilityEventTypes="typeAllMask" />""",
         )
+        patch_launcher_resources(xml_root)
         patch_accessibility_resources(xml_root)
         first_manifest = manifest.read_bytes()
         first_accessibility = accessibility.read_bytes()
+        patch_launcher_resources(xml_root)
         patch_accessibility_resources(xml_root)
         if manifest.read_bytes() != first_manifest:
             raise UiPatchError("Accessibility manifest patch is not byte-idempotent")
@@ -1173,6 +1326,29 @@ class ClientInfo"""
             raise UiPatchError("Accessibility manifest icon upsert self-test failed")
         if config_root.get(android_description) != "@string/saurus_accessibility_description":
             raise UiPatchError("Accessibility config description upsert self-test failed")
+
+        applications = list(manifest_root.iter("application"))
+        if len(applications) != 1:
+            raise UiPatchError("Launcher manifest application lookup self-test failed")
+        android_round_icon = f"{{{ANDROID_NAMESPACE}}}roundIcon"
+        if applications[0].get(android_icon) != "@mipmap/ic_launcher":
+            raise UiPatchError("Launcher manifest icon upsert self-test failed")
+        if applications[0].get(android_round_icon) != "@mipmap/ic_launcher_round":
+            raise UiPatchError("Launcher manifest roundIcon upsert self-test failed")
+        for launcher_xml in (
+            xml_root / "flutter/android/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml",
+            xml_root / "flutter/android/app/src/main/res/mipmap-anydpi-v26/ic_launcher_round.xml",
+        ):
+            launcher_root = ET.parse(launcher_xml).getroot()
+            if launcher_root.tag != "adaptive-icon":
+                raise UiPatchError("Adaptive launcher root self-test failed")
+            foreground = launcher_root.find("foreground")
+            background = launcher_root.find("background")
+            android_drawable = f"{{{ANDROID_NAMESPACE}}}drawable"
+            if foreground is None or foreground.get(android_drawable) != "@mipmap/saurus_launcher_foreground":
+                raise UiPatchError("Adaptive launcher foreground self-test failed")
+            if background is None or background.get(android_drawable) != "@color/saurus_launcher_background":
+                raise UiPatchError("Adaptive launcher background self-test failed")
 
         manifest_text = read_text(manifest)
         xml_text = read_text(accessibility)

@@ -67,6 +67,16 @@ def verify_ui_v2(root: Path) -> None:
     ]:
         forbid(server, forbidden, "manufacturer-specific instructions")
 
+    server_model = read(root / "flutter/lib/models/server_model.dart")
+    for marker, description in [
+        ("SAURUS_ANDROID_INCOMING_ACCEPT_V1", "incoming access action marker"),
+        ("label: const Text('Dispensar')", "visible dismiss action"),
+        ("label: const Text('Aceitar')", "visible accept action"),
+        ("onPressed: cancel", "incoming dismiss callback"),
+        ("onPressed: submit", "incoming accept callback"),
+    ]:
+        require(server_model, marker, description)
+
     settings = read(root / "flutter/lib/mobile/pages/settings_page.dart")
     require(settings, f"{MARKER}_SETTINGS_TITLE", "localized settings title")
 
@@ -82,6 +92,9 @@ def verify_ui_v2(root: Path) -> None:
     manifest_path = root / "flutter/android/app/src/main/AndroidManifest.xml"
     config_path = root / "flutter/android/app/src/main/res/xml/accessibility_service_config.xml"
     strings_path = root / "flutter/android/app/src/main/res/values/saurus_accessibility_strings.xml"
+    launcher_path = root / "flutter/android/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml"
+    launcher_round_path = root / "flutter/android/app/src/main/res/mipmap-anydpi-v26/ic_launcher_round.xml"
+    launcher_colors_path = root / "flutter/android/app/src/main/res/values/saurus_launcher_colors.xml"
 
     manifest = read(manifest_path)
     accessibility = read(config_path)
@@ -97,12 +110,47 @@ def verify_ui_v2(root: Path) -> None:
         manifest_root = ET.parse(manifest_path).getroot()
         config_root = ET.parse(config_path).getroot()
         strings_root = ET.parse(strings_path).getroot()
+        launcher_root = ET.parse(launcher_path).getroot()
+        launcher_round_root = ET.parse(launcher_round_path).getroot()
+        launcher_colors_root = ET.parse(launcher_colors_path).getroot()
     except ET.ParseError as exc:
         raise UiVerificationError(f"Invalid customized Android XML: {exc}") from exc
 
+    android_icon = f"{{{ANDROID_NAMESPACE}}}icon"
+    android_round_icon = f"{{{ANDROID_NAMESPACE}}}roundIcon"
+    android_drawable = f"{{{ANDROID_NAMESPACE}}}drawable"
+    applications = list(manifest_root.iter("application"))
+    if len(applications) != 1:
+        raise UiVerificationError(
+            f"Expected one application in AndroidManifest.xml, found {len(applications)}"
+        )
+    application = applications[0]
+    if application.get(android_icon) != "@mipmap/ic_launcher":
+        raise UiVerificationError("Application icon is not the Saurus launcher icon")
+    if application.get(android_round_icon) != "@mipmap/ic_launcher_round":
+        raise UiVerificationError("Application roundIcon is not the Saurus round launcher icon")
+
+    for name, adaptive_root in (
+        ("ic_launcher", launcher_root),
+        ("ic_launcher_round", launcher_round_root),
+    ):
+        if adaptive_root.tag != "adaptive-icon":
+            raise UiVerificationError(f"Unexpected adaptive launcher root for {name}")
+        foreground = adaptive_root.find("foreground")
+        background = adaptive_root.find("background")
+        if foreground is None or foreground.get(android_drawable) != "@mipmap/saurus_launcher_foreground":
+            raise UiVerificationError(f"{name} does not use the Saurus adaptive foreground")
+        if background is None or background.get(android_drawable) != "@color/saurus_launcher_background":
+            raise UiVerificationError(f"{name} does not use the Saurus adaptive background")
+    launcher_colors = [
+        item for item in launcher_colors_root.findall("color")
+        if item.get("name") == "saurus_launcher_background"
+    ]
+    if len(launcher_colors) != 1 or (launcher_colors[0].text or "").strip().upper() != "#14213D":
+        raise UiVerificationError("Saurus adaptive launcher background color is invalid")
+
     android_permission = f"{{{ANDROID_NAMESPACE}}}permission"
     android_description = f"{{{ANDROID_NAMESPACE}}}description"
-    android_icon = f"{{{ANDROID_NAMESPACE}}}icon"
     services = [
         item
         for item in manifest_root.iter("service")
@@ -139,11 +187,15 @@ def verify_ui_v2(root: Path) -> None:
     for relative in [
         "flutter/lib/mobile/pages/home_page.dart",
         "flutter/lib/mobile/pages/server_page.dart",
+        "flutter/lib/models/server_model.dart",
         "flutter/lib/mobile/pages/settings_page.dart",
         "flutter/lib/common.dart",
         "flutter/android/app/src/main/AndroidManifest.xml",
         "flutter/android/app/src/main/res/xml/accessibility_service_config.xml",
         "flutter/android/app/src/main/res/values/saurus_accessibility_strings.xml",
+        "flutter/android/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml",
+        "flutter/android/app/src/main/res/mipmap-anydpi-v26/ic_launcher_round.xml",
+        "flutter/android/app/src/main/res/values/saurus_launcher_colors.xml",
     ]:
         content = read(root / relative)
         for bad in ("\u251c", "\u252c", "\ufffd", "\u00c3"):

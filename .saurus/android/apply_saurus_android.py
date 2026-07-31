@@ -488,6 +488,16 @@ def copy_branding(root: Path, kit_root: Path) -> None:
         "mipmap-xhdpi/ic_launcher.png": "flutter/android/app/src/main/res/mipmap-xhdpi/ic_launcher.png",
         "mipmap-xxhdpi/ic_launcher.png": "flutter/android/app/src/main/res/mipmap-xxhdpi/ic_launcher.png",
         "mipmap-xxxhdpi/ic_launcher.png": "flutter/android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png",
+        "mipmap-mdpi/ic_launcher_round.png": "flutter/android/app/src/main/res/mipmap-mdpi/ic_launcher_round.png",
+        "mipmap-hdpi/ic_launcher_round.png": "flutter/android/app/src/main/res/mipmap-hdpi/ic_launcher_round.png",
+        "mipmap-xhdpi/ic_launcher_round.png": "flutter/android/app/src/main/res/mipmap-xhdpi/ic_launcher_round.png",
+        "mipmap-xxhdpi/ic_launcher_round.png": "flutter/android/app/src/main/res/mipmap-xxhdpi/ic_launcher_round.png",
+        "mipmap-xxxhdpi/ic_launcher_round.png": "flutter/android/app/src/main/res/mipmap-xxxhdpi/ic_launcher_round.png",
+        "mipmap-mdpi/saurus_launcher_foreground.png": "flutter/android/app/src/main/res/mipmap-mdpi/saurus_launcher_foreground.png",
+        "mipmap-hdpi/saurus_launcher_foreground.png": "flutter/android/app/src/main/res/mipmap-hdpi/saurus_launcher_foreground.png",
+        "mipmap-xhdpi/saurus_launcher_foreground.png": "flutter/android/app/src/main/res/mipmap-xhdpi/saurus_launcher_foreground.png",
+        "mipmap-xxhdpi/saurus_launcher_foreground.png": "flutter/android/app/src/main/res/mipmap-xxhdpi/saurus_launcher_foreground.png",
+        "mipmap-xxxhdpi/saurus_launcher_foreground.png": "flutter/android/app/src/main/res/mipmap-xxxhdpi/saurus_launcher_foreground.png",
         "mipmap-mdpi/ic_stat_logo.png": "flutter/android/app/src/main/res/mipmap-mdpi/ic_stat_logo.png",
         "mipmap-hdpi/ic_stat_logo.png": "flutter/android/app/src/main/res/mipmap-hdpi/ic_stat_logo.png",
         "mipmap-xhdpi/ic_stat_logo.png": "flutter/android/app/src/main/res/mipmap-xhdpi/ic_stat_logo.png",
@@ -540,7 +550,7 @@ def apply(root: Path, kit_root: Path, version: str) -> None:
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--source-root", type=Path, required=True)
-    parser.add_argument("--version", default="1.0.0-test2")
+    parser.add_argument("--version", default="1.0.3-test1")
     parser.add_argument("--verify-only", action="store_true")
     return parser.parse_args()
 

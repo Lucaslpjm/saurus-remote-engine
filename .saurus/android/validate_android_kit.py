@@ -48,6 +48,8 @@ def validate(kit_root: Path, workflow_path: Path) -> None:
         required.extend(
             [
                 f"assets/mipmap-{density}/ic_launcher.png",
+                f"assets/mipmap-{density}/ic_launcher_round.png",
+                f"assets/mipmap-{density}/saurus_launcher_foreground.png",
                 f"assets/mipmap-{density}/ic_stat_logo.png",
             ]
         )
@@ -160,6 +162,11 @@ def validate(kit_root: Path, workflow_path: Path) -> None:
         "SAURUS_ANDROID_XML_ATTRIBUTE_PATCH_V5",
         "def upsert_xml_attribute_in_start_tag",
         "Accessibility XML duplicate-attribute regression",
+        "SAURUS_ANDROID_ADAPTIVE_LAUNCHER_V1",
+        "def patch_launcher_resources",
+        "SAURUS_ANDROID_INCOMING_ACCEPT_V1",
+        "def patch_incoming_accept_dialog_content",
+        "Incoming-access action self-test",
     ]:
         require(ui_apply, marker, "robust Android UI patch")
 
@@ -191,7 +198,12 @@ def validate(kit_root: Path, workflow_path: Path) -> None:
             if image.width < 128 or image.height < 64:
                 raise ValidationError(f"Saurus Android logo is unexpectedly small: {image.size}")
         for density in densities:
-            for name in ["ic_launcher.png", "ic_stat_logo.png"]:
+            for name in [
+                "ic_launcher.png",
+                "ic_launcher_round.png",
+                "saurus_launcher_foreground.png",
+                "ic_stat_logo.png",
+            ]:
                 with Image.open(kit_root / f"assets/mipmap-{density}/{name}") as image:
                     if image.width <= 0 or image.height <= 0:
                         raise ValidationError(f"Invalid image dimensions: {density}/{name}")

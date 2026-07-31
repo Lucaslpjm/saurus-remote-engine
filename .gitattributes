@@ -15,3 +15,5 @@
 .saurus/android/apply_saurus_android_ui_v2.py text eol=lf
 .saurus/android/verify_saurus_android_ui_v2.py text eol=lf
 .saurus/android/validate_android_kit.py text eol=lf
+.saurus/android/*.txt text eol=lf
+.saurus/android/assets/** binary

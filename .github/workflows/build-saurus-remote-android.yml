@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       build_version:
-        description: "Versao do APK, por exemplo 1.0.2-test5"
+        description: "Versao do APK, por exemplo 1.0.3-test1"
         required: true
-        default: "1.0.2-test6"
+        default: "1.0.3-test3"
         type: string
 
 permissions:
@@ -39,10 +39,20 @@ jobs:
           required=(
             ".saurus/android/assets/saurus_remote_logo.png"
             ".saurus/android/assets/mipmap-mdpi/ic_launcher.png"
+            ".saurus/android/assets/mipmap-mdpi/ic_launcher_round.png"
+            ".saurus/android/assets/mipmap-mdpi/saurus_launcher_foreground.png"
             ".saurus/android/assets/mipmap-hdpi/ic_launcher.png"
+            ".saurus/android/assets/mipmap-hdpi/ic_launcher_round.png"
+            ".saurus/android/assets/mipmap-hdpi/saurus_launcher_foreground.png"
             ".saurus/android/assets/mipmap-xhdpi/ic_launcher.png"
+            ".saurus/android/assets/mipmap-xhdpi/ic_launcher_round.png"
+            ".saurus/android/assets/mipmap-xhdpi/saurus_launcher_foreground.png"
             ".saurus/android/assets/mipmap-xxhdpi/ic_launcher.png"
+            ".saurus/android/assets/mipmap-xxhdpi/ic_launcher_round.png"
+            ".saurus/android/assets/mipmap-xxhdpi/saurus_launcher_foreground.png"
             ".saurus/android/assets/mipmap-xxxhdpi/ic_launcher.png"
+            ".saurus/android/assets/mipmap-xxxhdpi/ic_launcher_round.png"
+            ".saurus/android/assets/mipmap-xxxhdpi/saurus_launcher_foreground.png"
             ".saurus/android/assets/mipmap-mdpi/ic_stat_logo.png"
             ".saurus/android/assets/mipmap-hdpi/ic_stat_logo.png"
             ".saurus/android/assets/mipmap-xhdpi/ic_stat_logo.png"
@@ -133,6 +143,9 @@ jobs:
               Path('flutter/android/app/src/main/AndroidManifest.xml'),
               Path('flutter/android/app/src/main/res/xml/accessibility_service_config.xml'),
               Path('flutter/android/app/src/main/res/values/saurus_accessibility_strings.xml'),
+              Path('flutter/android/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml'),
+              Path('flutter/android/app/src/main/res/mipmap-anydpi-v26/ic_launcher_round.xml'),
+              Path('flutter/android/app/src/main/res/values/saurus_launcher_colors.xml'),
           ]
           for path in files:
               ET.parse(path)
@@ -293,6 +306,7 @@ jobs:
           path: ./target/${{ matrix.target }}/release/liblibrustdesk.so
           if-no-files-found: error
           retention-days: 7
+          compression-level: 0
 
   package-android-apks:
     name: Package Saurus Remote Android APKs
@@ -577,3 +591,4 @@ jobs:
           path: output/
           if-no-files-found: error
           retention-days: 30
+          compression-level: 0
