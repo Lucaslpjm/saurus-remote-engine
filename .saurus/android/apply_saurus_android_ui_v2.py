@@ -78,6 +78,26 @@ def insert_before(path: Path, anchor: str, insertion: str, marker: str) -> bool:
     return True
 
 
+def replace_dart_class_pair(
+    content: str,
+    class_name: str,
+    next_class_name: str,
+    replacement: str,
+    path: Path,
+) -> str:
+    """Replace one complete top-level Dart class up to the next class declaration."""
+    pattern = re.compile(
+        rf"(?ms)^class {re.escape(class_name)}\b.*?^class {re.escape(next_class_name)}\b"
+    )
+    updated, count = pattern.subn(lambda _match: replacement, content, count=1)
+    if count != 1:
+        raise UiPatchError(
+            f"{path}: Dart class boundary not found exactly once: "
+            f"{class_name} -> {next_class_name}"
+        )
+    return updated
+
+
 def patch_home_page(root: Path) -> None:
     path = root / "flutter/lib/mobile/pages/home_page.dart"
     content = read_text(path)
@@ -466,10 +486,7 @@ def patch_server_page(root: Path) -> None:
             raise UiPatchError(f"{path}: expected label contract not found: {old}")
         content = content.replace(old, new, 1)
 
-    permission_class_pattern = re.compile(
-        r"class PermissionRow extends StatelessWidget \{.*?\n\}\nclass ConnectionManager",
-        flags=re.S,
-    )
+    # SAURUS_ANDROID_DART_CLASS_BOUNDARY_V4
     permission_class = rf'''class PermissionRow extends StatelessWidget {{
   const PermissionRow(this.name, this.isOk, this.onPressed,
       {{Key? key, this.enabled = true}})
@@ -522,14 +539,14 @@ def patch_server_page(root: Path) -> None:
 }}
 
 class ConnectionManager'''
-    content, count = permission_class_pattern.subn(permission_class, content, count=1)
-    if count != 1:
-        raise UiPatchError(f"{path}: PermissionRow class contract not found")
-
-    card_pattern = re.compile(
-        r"class PaddingCard extends StatelessWidget \{.*?\n\}\nclass ClientInfo",
-        flags=re.S,
+    content = replace_dart_class_pair(
+        content,
+        "PermissionRow",
+        "ConnectionManager",
+        permission_class,
+        path,
     )
+
     card_class = rf'''class PaddingCard extends StatelessWidget {{
   const PaddingCard({{Key? key, required this.child, this.title, this.titleIcon}})
       : super(key: key);
@@ -599,9 +616,13 @@ class ConnectionManager'''
 }}
 
 class ClientInfo'''
-    content, count = card_pattern.subn(card_class, content, count=1)
-    if count != 1:
-        raise UiPatchError(f"{path}: PaddingCard class contract not found")
+    content = replace_dart_class_pair(
+        content,
+        "PaddingCard",
+        "ClientInfo",
+        card_class,
+        path,
+    )
 
     extra_widgets = rf'''
 class SaurusHostHero extends StatelessWidget {{
@@ -931,6 +952,60 @@ def self_test() -> None:
             if themed.count(f"{MARKER}_THEME") != 1:
                 raise UiPatchError(
                     f"Theme variant self-test {number} is not idempotent"
+                )
+
+        dart_fixture = """class PermissionRow extends StatelessWidget {
+  Widget build(BuildContext context) {
+    return const SizedBox.shrink();
+  }
+}
+
+class ConnectionManager extends StatelessWidget {
+}
+
+class PaddingCard extends StatelessWidget {
+  Widget build(BuildContext context) {
+    return const SizedBox.shrink();
+  }
+}
+
+
+class ClientInfo extends StatelessWidget {
+}
+"""
+        permission_fixture_replacement = """class PermissionRow extends StatelessWidget {
+  const PermissionRow();
+}
+
+class ConnectionManager"""
+        card_fixture_replacement = """class PaddingCard extends StatelessWidget {
+  const PaddingCard();
+}
+
+class ClientInfo"""
+        dart_fixture = replace_dart_class_pair(
+            dart_fixture,
+            "PermissionRow",
+            "ConnectionManager",
+            permission_fixture_replacement,
+            root / "server-page-fixture.dart",
+        )
+        dart_fixture = replace_dart_class_pair(
+            dart_fixture,
+            "PaddingCard",
+            "ClientInfo",
+            card_fixture_replacement,
+            root / "server-page-fixture.dart",
+        )
+        for required in (
+            "const PermissionRow();",
+            "class ConnectionManager extends StatelessWidget",
+            "const PaddingCard();",
+            "class ClientInfo extends StatelessWidget",
+        ):
+            if required not in dart_fixture:
+                raise UiPatchError(
+                    f"Dart class boundary self-test failed: {required}"
                 )
 
         if not all(ord(ch) < 128 for ch in Path(__file__).read_text(encoding="utf-8")):
