@@ -62,6 +62,31 @@ def validate_actions_are_pinned(workflow: str) -> None:
             )
 
 
+# SAURUS_ANDROID_BUILD_VERSION_CONTRACT_V2
+def validate_build_version_input(workflow: str) -> None:
+    match = re.search(
+        r"(?ms)^\s{6}build_version:\s*\n(?P<body>(?:^\s{8}.*(?:\n|$))*)",
+        workflow,
+    )
+    if match is None:
+        raise ValidationError("workflow_dispatch input 'build_version' is missing")
+    body = match.group("body")
+    if re.search(r"(?m)^\s{8}required:\s*true\s*$", body) is None:
+        raise ValidationError("build_version input must be required")
+    if re.search(r"(?m)^\s{8}type:\s*string\s*$", body) is None:
+        raise ValidationError("build_version input must use type string")
+    default_match = re.search(
+        r"(?m)^\s{8}default:\s*[\"']?([^\"'\s]+)[\"']?\s*$",
+        body,
+    )
+    if default_match is None:
+        raise ValidationError("build_version input default is missing")
+    default_value = default_match.group(1)
+    if re.fullmatch(r"[0-9A-Za-z][0-9A-Za-z._-]{0,63}", default_value) is None:
+        raise ValidationError(f"Invalid build_version default: {default_value!r}")
+    if "${{ inputs.build_version }}" not in workflow:
+        raise ValidationError("The workflow does not consume inputs.build_version")
+
 def validate_assets(kit_root: Path) -> None:
     expected = {
         "assets/mipmap-mdpi/ic_launcher.png": (48, 48),
@@ -215,6 +240,7 @@ def validate(kit_root: Path, workflow_path: Path) -> None:
         if not isinstance(parsed, dict) or "jobs" not in parsed:
             raise ValidationError("Android workflow YAML does not contain a jobs map")
     validate_actions_are_pinned(workflow)
+    validate_build_version_input(workflow)
     for marker in [
         'RUST_VERSION: "1.75"',
         'CARGO_NDK_VERSION: "3.1.2"',
@@ -242,7 +268,12 @@ def validate(kit_root: Path, workflow_path: Path) -> None:
         "apply_saurus_android_ui_v2.py",
         "verify_saurus_android_ui_v2.py",
         "--self-test",
-        'default: "1.0.1-test1"',
+        "build_version:",
+        "required: true",
+        "type: string",
+        "${{ inputs.build_version }}",        "build_version:",
+        "required: true",
+        "type: string",
     ]:
         require(workflow, marker, "Android workflow contract")
     if "cache: true" in workflow:
