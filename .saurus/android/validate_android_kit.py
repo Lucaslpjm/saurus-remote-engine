@@ -140,6 +140,8 @@ def validate(kit_root: Path, workflow_path: Path) -> None:
         "config.json",
         "apply_saurus_android.py",
         "verify_saurus_android.py",
+        "apply_saurus_android_ui_v2.py",
+        "verify_saurus_android_ui_v2.py",
         "validate_android_kit.py",
         "tests/test_apply_saurus_android.py",
         "assets/saurus_remote_logo.png",
@@ -168,6 +170,8 @@ def validate(kit_root: Path, workflow_path: Path) -> None:
 
     apply_script = read_text(kit_root / "apply_saurus_android.py")
     verify_script = read_text(kit_root / "verify_saurus_android.py")
+    ui_script = read_text(kit_root / "apply_saurus_android_ui_v2.py")
+    ui_verify_script = read_text(kit_root / "verify_saurus_android_ui_v2.py")
     test_script = read_text(kit_root / "tests/test_apply_saurus_android.py")
     for marker in [
         "SAURUS_ANDROID_HOST_V1",
@@ -189,6 +193,21 @@ def validate(kit_root: Path, workflow_path: Path) -> None:
     ]:
         require(verify_script, marker, "Android verifier contract")
     require(test_script, "Customization is not idempotent", "idempotence fixture")
+    for marker in [
+        "SAURUS_ANDROID_UI_V2",
+        "SaurusHostHero",
+        "SaurusInputPermissionRow",
+        "showSaurusInputPermissionGuide",
+        "kActionApplicationDetailsSettings",
+        "saurus_accessibility_description",
+    ]:
+        require(ui_script, marker, "Android UI V2 contract")
+    for marker in [
+        "Saurus Remote Android UI V2 static verification passed",
+        "manufacturer-specific instructions",
+        "generic permission assistant",
+    ]:
+        require(ui_verify_script, marker, "Android UI V2 verifier contract")
 
     workflow = read_text(workflow_path)
     if yaml is not None:
@@ -220,6 +239,10 @@ def validate(kit_root: Path, workflow_path: Path) -> None:
         "lib/arm64-v8a/librustdesk.so",
         "android-build-manifest.json",
         "SHA256SUMS.txt",
+        "apply_saurus_android_ui_v2.py",
+        "verify_saurus_android_ui_v2.py",
+        "--self-test",
+        'default: "1.0.1-test1"',
     ]:
         require(workflow, marker, "Android workflow contract")
     if "cache: true" in workflow:

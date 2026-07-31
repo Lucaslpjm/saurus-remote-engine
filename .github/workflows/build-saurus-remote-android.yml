@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       build_version:
-        description: "Versao do APK, por exemplo 1.0.0-test1"
+        description: "Versao do APK, por exemplo 1.0.0-test2"
         required: true
-        default: "1.0.0-test1"
+        default: "1.0.1-test2"
         type: string
 
 permissions:
@@ -85,12 +85,15 @@ jobs:
           python -m py_compile \
             .saurus/android/apply_saurus_android.py \
             .saurus/android/verify_saurus_android.py \
+            .saurus/android/apply_saurus_android_ui_v2.py \
+            .saurus/android/verify_saurus_android_ui_v2.py \
             .saurus/android/validate_android_kit.py \
             .saurus/android/tests/test_apply_saurus_android.py
           python .saurus/android/validate_android_kit.py \
             --kit-root .saurus/android \
             --workflow .github/workflows/build-saurus-remote-android.yml
           python .saurus/android/tests/test_apply_saurus_android.py
+          python .saurus/android/apply_saurus_android_ui_v2.py --self-test
 
       - name: Apply customization on real RustDesk 1.4.9 tree
         shell: bash
@@ -99,10 +102,14 @@ jobs:
           python .saurus/android/apply_saurus_android.py \
             --source-root "$PWD" \
             --version '${{ inputs.build_version }}'
+          python .saurus/android/apply_saurus_android_ui_v2.py --source-root "$PWD"
           python .saurus/android/verify_saurus_android.py --source-root "$PWD"
+          python .saurus/android/verify_saurus_android_ui_v2.py --source-root "$PWD"
           python .saurus/android/apply_saurus_android.py \
             --source-root "$PWD" \
             --version '${{ inputs.build_version }}'
+          python .saurus/android/apply_saurus_android_ui_v2.py --source-root "$PWD"
+          python .saurus/android/verify_saurus_android_ui_v2.py --source-root "$PWD"
           git diff --check
 
   generate-bridge:
@@ -171,7 +178,9 @@ jobs:
           python .saurus/android/apply_saurus_android.py \
             --source-root "$PWD" \
             --version '${{ inputs.build_version }}'
+          python .saurus/android/apply_saurus_android_ui_v2.py --source-root "$PWD"
           python .saurus/android/verify_saurus_android.py --source-root "$PWD"
+          python .saurus/android/verify_saurus_android_ui_v2.py --source-root "$PWD"
 
       - name: Install Flutter
         uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
@@ -296,7 +305,9 @@ jobs:
           python .saurus/android/apply_saurus_android.py \
             --source-root "$PWD" \
             --version '${{ inputs.build_version }}'
+          python .saurus/android/apply_saurus_android_ui_v2.py --source-root "$PWD"
           python .saurus/android/verify_saurus_android.py --source-root "$PWD"
+          python .saurus/android/verify_saurus_android_ui_v2.py --source-root "$PWD"
 
       - name: Install Flutter
         uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
