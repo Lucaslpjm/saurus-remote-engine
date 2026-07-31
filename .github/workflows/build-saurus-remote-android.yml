@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       build_version:
-        description: "Versao do APK, por exemplo 1.0.0-test2"
+        description: "Versao do APK, por exemplo 1.0.2-test5"
         required: true
-        default: "1.0.2-test4"
+        default: "1.0.2-test5"
         type: string
 
 permissions:

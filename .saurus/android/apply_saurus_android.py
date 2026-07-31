@@ -81,6 +81,44 @@ def replace_tokens(path: Path, replacements: Iterable[tuple[str, str, int]]) -> 
         replace_exact(path, old, new, expected=count)
 
 
+def patch_host_title(path: Path) -> bool:
+    """Apply the base host title without breaking the final UI stage.
+
+    The Android pipeline intentionally runs twice during validation. On the
+    second pass, the visual V2 layer has already changed the base title from
+    ``Este dispositivo`` to ``Dispositivo``. Treat both marked stages as valid
+    and only patch the untouched upstream title.
+    """
+    content = read_text(path)
+    upstream = '  final title = translate("Share screen");'
+    base_title = f'  final title = "Este dispositivo"; // {MARKER}_HOST_TITLE'
+    final_title = '  final title = "Dispositivo";'
+    ui_marker = 'SAURUS_ANDROID_UI_V2_SERVER'
+    base_marker = f'{MARKER}_HOST_TITLE'
+
+    if ui_marker in content:
+        if content.count(final_title) != 1:
+            raise PatchError(
+                f"{path}: final UI marker exists but the final host title is not unique"
+            )
+        return False
+
+    if base_marker in content:
+        if content.count('  final title = "Este dispositivo";') != 1:
+            raise PatchError(
+                f"{path}: base host-title marker exists but the base title is not unique"
+            )
+        return False
+
+    count = content.count(upstream)
+    if count != 1:
+        raise PatchError(
+            f"{path}: expected one untouched host title, found {count}: {upstream!r}"
+        )
+    write_text(path, content.replace(upstream, base_title, 1))
+    return True
+
+
 def patch_config(root: Path, cfg: dict[str, object]) -> None:
     path = root / "libs/hbb_common/src/config.rs"
     server = str(cfg["rendezvous_server"])
@@ -212,7 +250,7 @@ def patch_mobile_home(root: Path) -> None:
 
 def patch_server_page(root: Path) -> None:
     path = root / "flutter/lib/mobile/pages/server_page.dart"
-    replace_exact(path, '  final title = translate("Share screen");', f'  final title = "Este dispositivo"; // {MARKER}_HOST_TITLE')
+    patch_host_title(path)
     replace_exact(path, '  final icon = const Icon(Icons.mobile_screen_share);', '  final icon = const Icon(Icons.phone_android);')
     old_actions = '''  final appBarActions = (!bind.isDisableSettings() &&
           bind.mainGetBuildinOption(key: kOptionHideSecuritySetting) != 'Y')

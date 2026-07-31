@@ -420,18 +420,48 @@ def patch_theme(root: Path) -> None:
     write_text(path, content)
 
 
+def patch_final_host_title(path: Path, content: str) -> tuple[str, bool]:
+    """Promote the base host title to the final visual title idempotently."""
+    ui_marker = f"{MARKER}_SERVER"
+    base_marker = "SAURUS_ANDROID_HOST_V1_HOST_TITLE"
+    final_prefix = '  final title = "Dispositivo";'
+
+    if ui_marker in content:
+        if content.count(final_prefix) != 1:
+            raise UiPatchError(
+                f"{path}: final UI marker exists but the final host title is not unique"
+            )
+        # Normalize legacy output from earlier builds so both layers can
+        # recognize the final line during a second pipeline pass.
+        title_line = next(
+            line for line in content.splitlines() if final_prefix in line
+        )
+        if base_marker not in title_line:
+            normalized = f'{final_prefix} // {ui_marker} // {base_marker}'
+            content = content.replace(title_line, normalized, 1)
+            return content, True
+        return content, False
+
+    title_pattern = re.compile(
+        r'(?m)^  final title = "Este dispositivo";[^\n]*SAURUS_ANDROID_HOST_V1_HOST_TITLE[^\n]*$'
+    )
+    replacement = f'{final_prefix} // {ui_marker} // {base_marker}'
+    content, count = title_pattern.subn(replacement, content, count=1)
+    if count != 1:
+        raise UiPatchError(f"{path}: marked base host page title contract not found")
+    return content, True
+
+
 def patch_server_page(root: Path) -> None:
     path = root / "flutter/lib/mobile/pages/server_page.dart"
     content = read_text(path)
     if f"{MARKER}_SERVER" in content:
+        content, changed = patch_final_host_title(path, content)
+        if changed:
+            write_text(path, content)
         return
 
-    title_pattern = re.compile(r'  final title = "Este dispositivo";[^\n]*')
-    content, count = title_pattern.subn(
-        f'  final title = "Dispositivo"; // {MARKER}_SERVER', content, count=1
-    )
-    if count != 1:
-        raise UiPatchError(f"{path}: host page title contract not found")
+    content, _ = patch_final_host_title(path, content)
 
     hero_anchor = """                      children: [
                         buildPresetPasswordWarningMobile(),"""

@@ -70,12 +70,12 @@ def run(root: Path, version: str, verify_idempotency: bool) -> None:
 
     apply_base.apply(root, HERE, version)
     verify_base.verify(root, HERE)
-    print("[OK] Android base host stage applied and verified")
+    print("[OK] Android base host stage applied and verified", flush=True)
 
     apply_ui.apply_ui_v2(root)
     verify_base.verify(root, HERE)
     verify_ui.verify_ui_v2(root)
-    print("[OK] Android final UI stage applied and verified")
+    print("[OK] Android final UI stage applied and verified", flush=True)
 
     if verify_idempotency:
         paths_before = changed_paths(root)
@@ -93,7 +93,7 @@ def run(root: Path, version: str, verify_idempotency: bool) -> None:
         if state_before != state_after:
             changed = sorted(k for k in state_before if state_before.get(k) != state_after.get(k))
             raise PipelineError(f"Android customization is not idempotent: {changed}")
-        print(f"[OK] Android pipeline idempotency verified across {len(state_after)} files")
+        print(f"[OK] Android pipeline idempotency verified across {len(state_after)} files", flush=True)
 
 
 def parse_args() -> argparse.Namespace:
@@ -108,10 +108,10 @@ def main() -> int:
     args = parse_args()
     try:
         run(args.source_root.resolve(), args.version, args.verify_idempotency)
-        print(f"[OK] Saurus Remote Android pipeline completed: {args.version}")
+        print(f"[OK] Saurus Remote Android pipeline completed: {args.version}", flush=True)
         return 0
     except Exception as exc:  # diagnostic boundary for GitHub Actions
-        print(f"[FAIL] {exc}", file=sys.stderr)
+        print(f"[FAIL] {exc}", file=sys.stderr, flush=True)
         return 1
 
 

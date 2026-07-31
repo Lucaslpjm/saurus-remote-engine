@@ -21,6 +21,7 @@ def load_module(name: str, path: Path):
 
 apply_mod = load_module("apply_saurus_android", ANDROID / "apply_saurus_android.py")
 verify_mod = load_module("verify_saurus_android", ANDROID / "verify_saurus_android.py")
+ui_mod = load_module("apply_saurus_android_ui_v2", ANDROID / "apply_saurus_android_ui_v2.py")
 
 
 def put(root: Path, relative: str, content: str) -> None:
@@ -299,6 +300,48 @@ Toast.makeText(context, "RustDesk is Open", Toast.LENGTH_LONG).show()
 
 
 
+def test_cross_layer_title_idempotency() -> None:
+    with tempfile.TemporaryDirectory() as temp:
+        root = Path(temp)
+        server_path = root / "flutter/lib/mobile/pages/server_page.dart"
+        put(
+            root,
+            "flutter/lib/mobile/pages/server_page.dart",
+            'class ServerPage {\n  final title = translate("Share screen");\n}',
+        )
+
+        assert apply_mod.patch_host_title(server_path) is True
+        base = server_path.read_text(encoding="utf-8")
+        assert 'final title = "Este dispositivo"' in base
+        assert "SAURUS_ANDROID_HOST_V1_HOST_TITLE" in base
+
+        final, changed = ui_mod.patch_final_host_title(server_path, base)
+        assert changed is True
+        server_path.write_text(final, encoding="utf-8", newline="\n")
+        first_final = server_path.read_bytes()
+        final_text = first_final.decode("utf-8")
+        assert 'final title = "Dispositivo"' in final_text
+        assert "SAURUS_ANDROID_UI_V2_SERVER" in final_text
+        assert "SAURUS_ANDROID_HOST_V1_HOST_TITLE" in final_text
+
+        assert apply_mod.patch_host_title(server_path) is False
+        normalized, changed = ui_mod.patch_final_host_title(
+            server_path, server_path.read_text(encoding="utf-8")
+        )
+        assert changed is False
+        server_path.write_text(normalized, encoding="utf-8", newline="\n")
+        assert server_path.read_bytes() == first_final
+
+        legacy = final_text.replace(
+            " // SAURUS_ANDROID_HOST_V1_HOST_TITLE", "", 1
+        )
+        server_path.write_text(legacy, encoding="utf-8", newline="\n")
+        assert apply_mod.patch_host_title(server_path) is False
+        normalized, changed = ui_mod.patch_final_host_title(server_path, legacy)
+        assert changed is True
+        assert "SAURUS_ANDROID_HOST_V1_HOST_TITLE" in normalized
+
+
 def test_title_stage_contract() -> None:
     with tempfile.TemporaryDirectory() as temp:
         root = Path(temp)
@@ -332,6 +375,7 @@ def test_title_stage_contract() -> None:
             raise AssertionError("A mismatched UI marker/title pair was accepted")
 
 def main() -> int:
+    test_cross_layer_title_idempotency()
     test_title_stage_contract()
     with tempfile.TemporaryDirectory() as temp:
         root = Path(temp)
@@ -355,7 +399,7 @@ def main() -> int:
             if p.is_file()
         }
         assert before == after, "Customization is not idempotent"
-    print("[OK] Android base customization and title-stage contract tests passed")
+    print("[OK] Android base customization, layered title and idempotency tests passed")
     return 0
 
 

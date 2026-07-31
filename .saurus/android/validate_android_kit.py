@@ -125,6 +125,7 @@ def validate(kit_root: Path, workflow_path: Path) -> None:
 
     base_verify = read(kit_root / "verify_saurus_android.py")
     ui_verify = read(kit_root / "verify_saurus_android_ui_v2.py")
+    base_apply = read(kit_root / "apply_saurus_android.py")
     ui_apply = read(kit_root / "apply_saurus_android_ui_v2.py")
     test = read(kit_root / "tests/test_apply_saurus_android.py")
     runner = read(kit_root / "run_saurus_android_pipeline.py")
@@ -138,7 +139,13 @@ def validate(kit_root: Path, workflow_path: Path) -> None:
     ]:
         require(base_verify, marker, "stage-aware host-title verifier")
     require(ui_verify, 'final title = "Dispositivo"', "final UI title verifier")
+    require(base_apply, "def patch_host_title(path: Path)", "stage-aware base title patch")
+    require(base_apply, "if ui_marker in content", "base patch final-stage guard")
+    require(ui_apply, "def patch_final_host_title", "idempotent final title patch")
+    require(ui_apply, "SAURUS_ANDROID_HOST_V1_HOST_TITLE", "preserved base title marker")
     require(test, "test_title_stage_contract", "base/final title regression test")
+    require(test, "test_cross_layer_title_idempotency", "cross-layer idempotency regression test")
+    require(test, "patch_final_host_title", "final-title helper regression coverage")
     require(test, "mismatched UI marker/title pair", "negative title-stage test")
 
     for marker in [

@@ -98,6 +98,8 @@ def validate(repo_root: Path) -> None:
     base_verify = read(android / "verify_saurus_android.py")
     ui_verify = read(android / "verify_saurus_android_ui_v2.py")
     base_test = read(android / "tests/test_apply_saurus_android.py")
+    base_apply = read(android / "apply_saurus_android.py")
+    ui_apply = read(android / "apply_saurus_android_ui_v2.py")
     runner = read(android / "run_saurus_android_pipeline.py")
 
     for marker in [
@@ -110,7 +112,13 @@ def validate(repo_root: Path) -> None:
         require(base_verify, marker, "stage-aware base verifier contract")
 
     require(ui_verify, 'final title = "Dispositivo"', "final UI title contract")
+    require(base_apply, "def patch_host_title(path: Path)", "stage-aware base title patch")
+    require(base_apply, "if ui_marker in content", "base patch final-stage guard")
+    require(ui_apply, "def patch_final_host_title", "idempotent final title patch")
+    require(ui_apply, "SAURUS_ANDROID_HOST_V1_HOST_TITLE", "preserved base title marker")
     require(base_test, "test_title_stage_contract", "title-stage regression test")
+    require(base_test, "test_cross_layer_title_idempotency", "cross-layer idempotency regression test")
+    require(base_test, "patch_final_host_title", "final-title helper regression coverage")
     require(base_test, "SAURUS_ANDROID_UI_V2_SERVER", "final-stage test marker")
 
     require(runner, "Android base host stage applied and verified", "base pipeline stage")
