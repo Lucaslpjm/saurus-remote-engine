@@ -11,7 +11,7 @@ SaurusRemoteDiagnostics.exe     coleta sanitizada de diagnóstico
 SaurusRemote (serviço)          host de acesso não assistido
 ```
 
-O launcher de entrada do Windows executa como `requireAdministrator` e inicia somente a interface. O motor `SaurusRemote.exe` permanece `asInvoker/default`, permitindo que o serviço crie os processos `--server` e `--tray` na sessão correta. Instalação, alteração de serviço e atualização devem passar por helpers pequenos, assinados e com comandos limitados.
+O launcher de entrada do Windows executa como `requireAdministrator` e inicia somente a interface. O motor `SaurusRemote.exe` permanece `asInvoker/default`; o serviço executa como `LocalSystem`, nível necessário para obter o token de `winlogon.exe` e criar `--server` na sessão correta. Instalação, alteração de serviço e atualização devem passar por helpers pequenos, assinados e com comandos limitados.
 
 ## Isolamento
 

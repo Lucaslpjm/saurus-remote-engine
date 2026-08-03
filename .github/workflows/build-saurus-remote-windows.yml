@@ -6,7 +6,7 @@ on:
       build_label:
         description: "Identificador da compilacao Saurus"
         required: true
-        default: "saurus.3.2.3.6"
+        default: "saurus.3.2.3.7"
         type: string
       include_remote_printer:
         description: "Incluir driver de impressao remota upstream (desativado por padrao para maximizar coexistencia)"
@@ -576,7 +576,8 @@ jobs:
             serviceName = 'SaurusRemote'
             installPath = '%ProgramFiles%\Saurus Software\Saurus Remote'
             userConfigPath = '%APPDATA%\SaurusRemote'
-            serviceConfigPath = '%WINDIR%\ServiceProfiles\LocalService\AppData\Roaming\SaurusRemote'
+            serviceConfigPath = '%WINDIR%\System32\config\systemprofile\AppData\Roaming\SaurusRemote'
+            serviceAccount = 'LocalSystem'
             rendezvousServer = '20.195.216.23:443'
             permanentPasswordEmbedded = $true
             fixedPasswordPolicy = $true

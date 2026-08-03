@@ -14,7 +14,7 @@ Este pacote transforma o RustDesk 1.4.9 no **Saurus Remote** e gera três format
 3. A senha operacional **`ophd0202`** é aplicada no início normal, no modo portátil, no serviço e no servidor.
 4. O instalador repete a aplicação da senha por `stdin`, valida o retorno e registra log em `%ProgramData%\Saurus Software\Saurus Remote\install-config.log`.
 5. O launcher instalado e o portátil recebem manifesto `requireAdministrator`; o motor permanece `asInvoker/default` para suportar serviço, servidor e tray.
-6. O instalador registra o serviço `SaurusRemote`, configura início automático e recuperação após falhas, permite acesso na tela de logon, cria regra de firewall, atalhos e desinstalação limpa.
+6. O instalador registra o serviço `SaurusRemote` como `LocalSystem`, valida o processo `--server` na sessão interativa, configura início automático e recuperação após falhas, permite acesso na tela de logon, cria regra de firewall, atalhos e desinstalação limpa.
 
 ## Identidade isolada
 
@@ -22,7 +22,7 @@ Este pacote transforma o RustDesk 1.4.9 no **Saurus Remote** e gera três format
 - serviço: `SaurusRemote` / `Saurus Remote Service`;
 - instalação: `%ProgramFiles%\Saurus Software\Saurus Remote`;
 - configuração do usuário: `%APPDATA%\SaurusRemote`;
-- configuração do serviço: `%WINDIR%\ServiceProfiles\LocalService\AppData\Roaming\SaurusRemote`;
+- configuração do serviço: `%WINDIR%\System32\config\systemprofile\AppData\Roaming\SaurusRemote`;
 - chave de desinstalação: `{1117CE17-506B-4122-A421-69233FCA9C12}_is1`;
 - servidor: `20.195.216.23:443`;
 - senha permanente: `ophd0202`.

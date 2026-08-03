@@ -11,8 +11,9 @@ New-Item -ItemType Directory -Path $OutputDirectory -Force | Out-Null
 
 $services = Get-CimInstance Win32_Service | Where-Object { $_.Name -match 'SaurusRemote|RustDesk' } |
     Select-Object Name, DisplayName, State, StartMode, PathName
-$processes = Get-Process -ErrorAction SilentlyContinue | Where-Object { $_.ProcessName -match 'SaurusRemote|RustDesk' } |
-    Select-Object ProcessName, Id, Path, StartTime
+$processes = Get-CimInstance Win32_Process -ErrorAction SilentlyContinue |
+    Where-Object { $_.Name -match 'SaurusRemote|RustDesk' } |
+    Select-Object Name, ProcessId, SessionId, ExecutablePath, CommandLine
 $network = foreach ($port in $TcpPorts) {
     $test = Test-NetConnection -ComputerName $ServerHost -Port $port -WarningAction SilentlyContinue
     [pscustomobject]@{ Host = $ServerHost; Port = $port; TcpSucceeded = $test.TcpTestSucceeded; RemoteAddress = $test.RemoteAddress }
@@ -21,6 +22,7 @@ $network = foreach ($port in $TcpPorts) {
 $configPaths = @(
     "$env:APPDATA\SaurusRemote",
     "$env:APPDATA\RustDesk",
+    "$env:WINDIR\System32\config\systemprofile\AppData\Roaming\SaurusRemote",
     "$env:WINDIR\ServiceProfiles\LocalService\AppData\Roaming\SaurusRemote",
     "$env:WINDIR\ServiceProfiles\LocalService\AppData\Roaming\RustDesk"
 )
@@ -44,6 +46,7 @@ $report | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $reportPath -Encod
 # Copia somente logs; arquivos TOML podem conter dados sensíveis e não são exportados automaticamente.
 $logCandidates = @(
     "$env:APPDATA\SaurusRemote\log",
+    "$env:WINDIR\System32\config\systemprofile\AppData\Roaming\SaurusRemote\log",
     "$env:WINDIR\ServiceProfiles\LocalService\AppData\Roaming\SaurusRemote\log"
 )
 foreach ($logDir in $logCandidates) {

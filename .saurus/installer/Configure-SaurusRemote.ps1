@@ -1,4 +1,4 @@
-# SAURUS_REMOTE_HEADLESS_POSTINSTALL_V4
+# SAURUS_REMOTE_HEADLESS_POSTINSTALL_V5
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)][string]$InstallDir
@@ -9,8 +9,10 @@ $ErrorActionPreference = "Stop"
 
 $Product = "Saurus Remote"
 $ServiceName = "SaurusRemote"
-$ServiceAccount = "NT AUTHORITY\LocalService"
-$ServicePassword = ""
+# O motor usa o token do winlogon para criar --server na sessao interativa e
+# precisa dos privilegios nativos da conta LocalSystem.
+$ServiceAccount = "LocalSystem"
+$ServicePassword = $null
 $RendezvousServer = "20.195.216.23:443"
 $PublicKey = "OJ7QiUrqNu0wM13vDSp4nmAlDu6hy3n8hTI5Wksl2Tc="
 $InstallDir = [IO.Path]::GetFullPath($InstallDir)
@@ -193,7 +195,7 @@ function Set-OrCreateManagedService {
     if (-not $verified.PathName.Contains($Exe) -or -not $verified.PathName.Contains("--service")) {
         throw "Caminho efetivo inesperado no servico: $($verified.PathName)"
     }
-    if ($verified.StartName -notmatch '(?i)LocalService$') {
+    if ($verified.StartName -notmatch '(?i)(LocalSystem|NT AUTHORITY\\SYSTEM)$') {
         throw "Conta efetiva inesperada no servico: $($verified.StartName)"
     }
     Log "Servico verificado: PathName=[$($verified.PathName)]; StartName=[$($verified.StartName)]; StartMode=[$($verified.StartMode)]."
@@ -252,6 +254,48 @@ function Wait-ServiceStable {
     } while ((Get-Date) -lt $limit)
 
     throw "O servico nao permaneceu em execucao de forma estavel dentro de $TimeoutSeconds segundos."
+}
+
+function Get-ManagedServerProcess {
+    return Get-WmiObject -Class Win32_Process -Filter "Name='SaurusRemote.exe'" -ErrorAction SilentlyContinue |
+        Where-Object {
+            [uint32]$_.SessionId -gt 0 -and
+            -not [string]::IsNullOrWhiteSpace($_.CommandLine) -and
+            $_.CommandLine -match '(?i)(?:^|\s)--server(?:\s|$)'
+        } |
+        Select-Object -First 1
+}
+
+function Wait-ManagedServerStable {
+    param(
+        [int]$TimeoutSeconds,
+        [int]$StableSeconds = 5
+    )
+
+    # SAURUS_REMOTE_VERIFY_INTERACTIVE_SERVER_V1
+    $limit = (Get-Date).AddSeconds($TimeoutSeconds)
+    $stableSince = $null
+    $stablePid = 0
+    do {
+        $server = Get-ManagedServerProcess
+        if ($null -ne $server) {
+            if ($stablePid -ne [uint32]$server.ProcessId) {
+                $stablePid = [uint32]$server.ProcessId
+                $stableSince = Get-Date
+            }
+            if ($null -ne $stableSince -and ((Get-Date) - $stableSince).TotalSeconds -ge $StableSeconds) {
+                Log "Servidor interativo permaneceu estavel por $StableSeconds segundos; PID=$($server.ProcessId); SessionId=$($server.SessionId)."
+                return
+            }
+        }
+        else {
+            $stableSince = $null
+            $stablePid = 0
+        }
+        Start-Sleep -Milliseconds 500
+    } while ((Get-Date) -lt $limit)
+
+    throw "O processo --server nao permaneceu ativo em uma sessao interativa dentro de $TimeoutSeconds segundos."
 }
 
 function Write-ServiceDiagnostics {
@@ -349,7 +393,7 @@ function Get-ConfigRoots {
     # do serviço. Não cria nem altera arquivos dentro de perfis de outros usuários.
     $roots = New-Object System.Collections.Generic.List[string]
     $roots.Add((Join-Path $env:APPDATA "SaurusRemote\config"))
-    $roots.Add((Join-Path $env:WINDIR "ServiceProfiles\LocalService\AppData\Roaming\SaurusRemote\config"))
+    $roots.Add((Join-Path $env:WINDIR "System32\config\systemprofile\AppData\Roaming\SaurusRemote\config"))
     return $roots | Select-Object -Unique
 }
 
@@ -378,7 +422,7 @@ function Set-FirewallRule {
 
 try {
     Rotate-InstallLog
-    Log "=== Inicio da configuracao headless pos-instalacao V4 ==="
+    Log "=== Inicio da configuracao headless pos-instalacao V5 ==="
     if (-not (Test-Administrator)) { throw "A configuracao requer privilegios administrativos." }
     if (-not (Test-Path -LiteralPath $Exe -PathType Leaf)) { throw "Executavel nao encontrado: $Exe" }
 
@@ -407,9 +451,10 @@ try {
 
     Start-Service -Name $ServiceName -ErrorAction Stop
     Wait-ServiceStable -TimeoutSeconds 45 -StableSeconds 8
+    Wait-ManagedServerStable -TimeoutSeconds 45 -StableSeconds 5
 
     Log "Servico iniciado. A senha fixa sera reforcada pelo motor customizado."
-    Log "=== Configuracao headless V4 concluida com sucesso ==="
+    Log "=== Configuracao headless V5 concluida com sucesso ==="
     exit 0
 }
 catch {

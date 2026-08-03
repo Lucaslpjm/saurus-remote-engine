@@ -9,13 +9,13 @@ O arquivo portátil continua disponível, mas o artefato recomendado é o `Setup
 1. O setup solicita privilégios administrativos.
 2. Para a versão anterior e encerra a interface.
 3. Copia o motor e todas as dependências para Program Files.
-4. Registra o serviço `SaurusRemote`, início automático e recuperação em falhas.
+4. Registra o serviço `SaurusRemote` como `LocalSystem`, com início automático e recuperação em falhas.
 5. Define as opções de autenticação e tela de logon.
-6. Envia `ophd0202` por entrada padrão ao motor.
+6. Grava as preferências operacionais; o próprio motor reforça `ophd0202` no início normal, serviço e servidor.
 7. Bloqueia alterações para outra senha.
 8. Grava preferências de escala adaptável e som desativado e migra pares já salvos.
 9. Cria regra de firewall e reinicia o serviço.
-10. Reinicia o serviço, reaplica a senha, confirma as opções efetivas, obtém o ID e registra o resultado no log.
+10. Reinicia o serviço e confirma que `--server` permanece ativo na sessão interativa antes de concluir o setup.
 
 ## Atualização
 

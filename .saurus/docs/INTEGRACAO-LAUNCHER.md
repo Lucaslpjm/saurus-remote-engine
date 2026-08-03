@@ -7,7 +7,7 @@ Executável instalado: C:\Program Files\Saurus Software\Saurus Remote\SaurusRemo
 Serviço: SaurusRemote
 Nome visual: Saurus Remote Service
 Configuração do usuário: %APPDATA%\SaurusRemote
-Configuração do serviço: %WINDIR%\ServiceProfiles\LocalService\AppData\Roaming\SaurusRemote
+Configuração do serviço: %WINDIR%\System32\config\systemprofile\AppData\Roaming\SaurusRemote
 ```
 
 Comandos relevantes:

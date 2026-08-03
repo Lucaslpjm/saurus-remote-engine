@@ -320,10 +320,14 @@ for marker in [
     if marker not in installer_manifest:
         error(f"Manifesto administrativo incompleto: {marker}")
 for marker in [
-    'SAURUS_REMOTE_HEADLESS_POSTINSTALL_V4',
+    'SAURUS_REMOTE_HEADLESS_POSTINSTALL_V5',
     'Win32_Service.Create',
     'Win32_Service.Change',
     'Wait-ServiceStable -TimeoutSeconds 45 -StableSeconds 8',
+    'SAURUS_REMOTE_VERIFY_INTERACTIVE_SERVER_V1',
+    'Wait-ManagedServerStable -TimeoutSeconds 45 -StableSeconds 5',
+    '$ServiceAccount = "LocalSystem"',
+    'System32\\config\\systemprofile\\AppData\\Roaming\\SaurusRemote\\config',
     'SaurusRemote_default.toml',
     'view_style',
     'disable_audio',
@@ -342,7 +346,8 @@ for forbidden in [
     'sc.exe create',
     'sc.exe config',
     '-Profile Any',
-    'System32\\config\\systemprofile',
+    'NT AUTHORITY\\LocalService',
+    'ServiceProfiles\\LocalService',
     'Users\\Default',
 ]:
     if forbidden in installer_config:

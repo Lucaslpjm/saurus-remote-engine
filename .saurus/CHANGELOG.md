@@ -1,5 +1,8 @@
-## 1.4.9-saurus.3.2.3.6
+## 1.4.9-saurus.3.2.3.7
 
+- Executa o servico como `LocalSystem`, nivel exigido para obter o token de `winlogon.exe` e iniciar `--server` na sessao interativa.
+- Valida durante a instalacao que o processo `--server` permanece ativo fora da sessao 0, evitando concluir um setup funcional apenas no SCM.
+- Move a configuracao do servico para o perfil dedicado `systemprofile` e preserva o launcher administrativo separado do motor.
 - Isola o manifesto `requireAdministrator` em `SaurusRemoteLauncher.exe`, evitando que a elevacao bloqueie os modos `--service`, `--server` e `--tray` do motor.
 - Garante que os atalhos da area de trabalho, menu Iniciar e abertura pos-instalacao usem o launcher com UAC.
 - Mantem o portatil administrativo e restaura o motor instalado ao nivel `asInvoker/default` esperado pelo Windows.

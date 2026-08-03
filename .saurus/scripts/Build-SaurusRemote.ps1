@@ -179,7 +179,8 @@ try {
         serviceName = "SaurusRemote"
         installPath = "%ProgramFiles%\Saurus Software\Saurus Remote"
         userConfigPath = "%APPDATA%\SaurusRemote"
-        serviceConfigPath = "%WINDIR%\ServiceProfiles\LocalService\AppData\Roaming\SaurusRemote"
+        serviceConfigPath = "%WINDIR%\System32\config\systemprofile\AppData\Roaming\SaurusRemote"
+        serviceAccount = "LocalSystem"
         permanentPasswordEmbedded = $true
         fixedPasswordPolicy = $true
         passwordProvisioning = "normal/service/server startup enforcement"

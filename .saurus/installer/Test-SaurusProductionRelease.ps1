@@ -81,17 +81,22 @@ foreach ($forbidden in @(
     'Invoke-Sc -Arguments @("create"',
     'Invoke-Sc -Arguments @("config"',
     'sc.exe create',
-    'sc.exe config'
+    'sc.exe config',
+    'NT AUTHORITY\LocalService',
+    'ServiceProfiles\LocalService'
 )) {
     if ($configureText.Contains($forbidden)) {
         throw "O configurador ainda contem fluxo inseguro: $forbidden"
     }
 }
 foreach ($required in @(
-    "SAURUS_REMOTE_HEADLESS_POSTINSTALL_V4",
+    "SAURUS_REMOTE_HEADLESS_POSTINSTALL_V5",
     "Win32_Service.Create",
     "Win32_Service.Change",
-    '$ServiceAccount = "NT AUTHORITY\LocalService"',
+    '$ServiceAccount = "LocalSystem"',
+    '$ServicePassword = $null',
+    "SAURUS_REMOTE_VERIFY_INTERACTIVE_SERVER_V1",
+    "Wait-ManagedServerStable -TimeoutSeconds 45 -StableSeconds 5",
     "DelayedAutostart",
     "Wait-ServiceStable -TimeoutSeconds 45 -StableSeconds 8",
     "SaurusRemote2.toml",
@@ -102,7 +107,7 @@ foreach ($required in @(
     "Rotate-InstallLog"
 )) {
     if (-not $configureText.Contains($required)) {
-        throw "Contrato do configurador headless V4 ausente: $required"
+        throw "Contrato do configurador headless V5 ausente: $required"
     }
 }
 
