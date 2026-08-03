@@ -20,6 +20,7 @@
 #define AppName "Saurus Remote"
 #define AppPublisher "Saurus Software"
 #define AppExeName "SaurusRemote.exe"
+#define AppLauncherName "SaurusRemoteLauncher.exe"
 
 [Setup]
 ; SAURUS_REMOTE_APPID_ESCAPED_GUID_V1
@@ -65,13 +66,13 @@ Source: "{#InstallerRoot}\Uninstall-SaurusRemote.ps1"; DestDir: "{app}\tools"; F
 Source: "{#InstallerRoot}\SaurusRemote_default.toml"; DestDir: "{app}\defaults"; Flags: ignoreversion
 
 [Icons]
-; Os atalhos apontam diretamente para o executavel com manifesto requireAdministrator.
-Name: "{autoprograms}\Saurus Remote"; Filename: "{app}\{#AppExeName}"; WorkingDir: "{app}"
-Name: "{autodesktop}\Saurus Remote"; Filename: "{app}\{#AppExeName}"; WorkingDir: "{app}"
+; O launcher solicita UAC; o motor permanece asInvoker para suportar service/server/tray.
+Name: "{autoprograms}\Saurus Remote"; Filename: "{app}\{#AppLauncherName}"; WorkingDir: "{app}"; IconFilename: "{app}\{#AppExeName}"
+Name: "{autodesktop}\Saurus Remote"; Filename: "{app}\{#AppLauncherName}"; WorkingDir: "{app}"; IconFilename: "{app}\{#AppExeName}"
 
 [Run]
-; postinstall usa o usuario original por padrao; runascurrentuser preserva a elevacao do setup.
-Filename: "{app}\{#AppExeName}"; Description: "Abrir o Saurus Remote"; WorkingDir: "{app}"; Flags: nowait postinstall skipifsilent runascurrentuser
+; O setup ja esta elevado e inicia o launcher na sessao interativa atual.
+Filename: "{app}\{#AppLauncherName}"; Description: "Abrir o Saurus Remote"; WorkingDir: "{app}"; Flags: nowait postinstall skipifsilent runascurrentuser
 [UninstallRun]
 Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ""{app}\tools\Uninstall-SaurusRemote.ps1"" -InstallDir ""{app}"""; Flags: runhidden waituntilterminated; RunOnceId: "SaurusRemoteRemoveService"
 

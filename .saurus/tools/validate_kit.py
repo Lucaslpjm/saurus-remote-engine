@@ -68,6 +68,9 @@ REQUIRED = [
     "scripts/Apply-SaurusProductionUx.ps1",
     "installer/Uninstall-SaurusRemote.ps1",
     "installer/Set-RequireAdministratorManifest.ps1",
+    "installer/Build-SaurusRemoteLauncher.ps1",
+    "installer/Test-SaurusExecutionLevels.ps1",
+    "installer/SaurusRemoteLauncher.cs",
     "installer/SaurusRemote.requireAdministrator.manifest",
     "installer/SaurusRemote_default.toml",
     "docs/REVISAO-CODIGO-LEGADO.md",
@@ -244,7 +247,8 @@ for marker in [
     "Build definitive Saurus Remote installer",
     "SaurusRemote.iss",
     "requiresAdministrator = $true",
-    "applicationExecutionLevel = 'requireAdministrator'",
+    "applicationExecutionLevel = 'launcher:requireAdministrator; engine:asInvoker'",
+    "SaurusRemoteLauncher.exe",
     "definitiveInstallerIncluded = $true",
     "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
 ]:
@@ -479,9 +483,11 @@ if "MOJIBAKE_MARKERS" not in utf8_repair or "cp850" not in utf8_repair:
 if "SAURUS_REMOTE_PRODUCTION_UX_PIPELINE_V3" not in text("scripts/Apply-SaurusProductionUx.ps1"):
     error("Pipeline UTF-8 final da interface ausente.")
 if 'level="requireAdministrator"' not in installer_manifest:
-    error("O aplicativo principal deve exigir elevacao administrativa.")
+    error("O launcher deve exigir elevacao administrativa.")
 if 'level="asInvoker"' in installer_manifest:
-    error("O aplicativo principal ainda permite execucao sem elevacao.")
+    error("O manifesto do launcher ainda permite execucao sem elevacao.")
+if "AppLauncherName" not in installer_iss:
+    error("Os atalhos nao utilizam o launcher administrativo isolado.")
 if "runascurrentuser" not in installer_iss:
     error("A abertura final nao preserva a elevacao administrativa do setup.")
 if "runasoriginaluser" in installer_iss:

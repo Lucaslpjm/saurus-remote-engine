@@ -387,12 +387,18 @@ jobs:
             throw 'Foi encontrado um segundo executavel RustDesk no pacote.'
           }
 
-      - name: Apply mandatory administrator manifest and bundle operational defaults
+      - name: Build elevated UI launcher and bundle operational defaults
         shell: pwsh
         run: |
-          & .\.saurus\installer\Set-RequireAdministratorManifest.ps1 `
-            -Executable .\rustdesk\SaurusRemote.exe `
-            -Manifest .\.saurus\installer\SaurusRemote.requireAdministrator.manifest
+          & .\.saurus\installer\Build-SaurusRemoteLauncher.ps1 `
+            -OutputExecutable .\rustdesk\SaurusRemoteLauncher.exe `
+            -Manifest .\.saurus\installer\SaurusRemote.requireAdministrator.manifest `
+            -Icon .\.saurus\branding\app_icon.ico `
+            -NumericVersion $env:NUMERIC_PRODUCT_VERSION
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & .\.saurus\installer\Test-SaurusExecutionLevels.ps1 `
+            -EngineExecutable .\rustdesk\SaurusRemote.exe `
+            -LauncherExecutable .\rustdesk\SaurusRemoteLauncher.exe
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           New-Item -ItemType Directory -Path .\rustdesk\defaults -Force | Out-Null
           Copy-Item `
@@ -578,7 +584,8 @@ jobs:
             defaultViewStyle = 'adaptive'
             defaultDisableAudio = $true
             requiresAdministrator = $true
-            applicationExecutionLevel = 'requireAdministrator'
+            applicationExecutionLevel = 'launcher:requireAdministrator; engine:asInvoker'
+            elevatedLauncher = 'SaurusRemoteLauncher.exe'
             definitiveInstallerIncluded = $true
             upstreamSelfUpdateEnabled = $false
             authenticodeRequested = [bool]::Parse($env:SIGNING_CONFIGURED)

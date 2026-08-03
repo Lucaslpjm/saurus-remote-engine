@@ -135,11 +135,18 @@ try {
     if (-not (Test-Path -LiteralPath $saurusExe -PathType Leaf)) { throw "SaurusRemote.exe nao encontrado no pacote final." }
     if (-not (Test-Path -LiteralPath (Join-Path $packagePath "librustdesk.dll") -PathType Leaf)) { throw "librustdesk.dll nao encontrada." }
 
-    # O executavel principal sempre solicita elevacao, inclusive pelos atalhos instalados.
-    & (Join-Path $PSScriptRoot "..\installer\Set-RequireAdministratorManifest.ps1") `
-        -Executable $saurusExe `
-        -Manifest (Join-Path $PSScriptRoot "..\installer\SaurusRemote.requireAdministrator.manifest")
-    if ($LASTEXITCODE -ne 0) { throw "Falha ao aplicar manifesto requireAdministrator." }
+    # A elevacao fica isolada no launcher; o motor precisa iniciar como service/server/tray.
+    $launcherExe = Join-Path $packagePath "SaurusRemoteLauncher.exe"
+    & (Join-Path $PSScriptRoot "..\installer\Build-SaurusRemoteLauncher.ps1") `
+        -OutputExecutable $launcherExe `
+        -Manifest (Join-Path $PSScriptRoot "..\installer\SaurusRemote.requireAdministrator.manifest") `
+        -Icon (Join-Path $PSScriptRoot "..\branding\app_icon.ico") `
+        -NumericVersion $NumericVersion
+    if ($LASTEXITCODE -ne 0) { throw "Falha ao compilar o launcher administrativo." }
+    & (Join-Path $PSScriptRoot "..\installer\Test-SaurusExecutionLevels.ps1") `
+        -EngineExecutable $saurusExe `
+        -LauncherExecutable $launcherExe
+    if ($LASTEXITCODE -ne 0) { throw "Falha ao validar os niveis de execucao." }
 
     $defaultsDir = Join-Path $packagePath "defaults"
     New-Item -ItemType Directory -Path $defaultsDir -Force | Out-Null
@@ -179,7 +186,8 @@ try {
         defaultViewStyle = "adaptive"
         defaultDisableAudio = $true
         requiresAdministrator = $true
-        applicationExecutionLevel = "requireAdministrator"
+        applicationExecutionLevel = "launcher:requireAdministrator; engine:asInvoker"
+        elevatedLauncher = "SaurusRemoteLauncher.exe"
         definitiveInstallerIncluded = $true
         upstreamSelfUpdateEnabled = $false
         signed = -not [string]::IsNullOrWhiteSpace($SigningCertificateThumbprint)

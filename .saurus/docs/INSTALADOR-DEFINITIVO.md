@@ -35,4 +35,4 @@ Esse arquivo deve ser solicitado quando instalação, senha, serviço ou ID não
 
 ## Elevação administrativa
 
-O executável instalado e o portátil recebem manifesto `requireAdministrator`. O Windows exibirá o UAC ao abrir a interface; isso não pode ser removido sem reduzir o nível de elevação. Depois que o setup instala o serviço, o acesso não assistido passa a operar pelo serviço elevado, inclusive na tela de logon e em fluxos de UAC suportados pelo Windows.
+O `SaurusRemoteLauncher.exe` instalado e o portátil recebem manifesto `requireAdministrator`. Os atalhos e a abertura pós-instalação usam esse launcher, portanto o Windows exibe o UAC antes da interface. O motor `SaurusRemote.exe` permanece `asInvoker/default`, pois o mesmo binário executa os modos internos `--service`, `--server` e `--tray`; aplicar elevação obrigatória diretamente nele impede a criação correta desses subprocessos na sessão do usuário.

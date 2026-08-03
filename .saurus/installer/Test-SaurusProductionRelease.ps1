@@ -26,6 +26,9 @@ $uninstall = Require-File ".saurus\installer\Uninstall-SaurusRemote.ps1"
 $iss = Require-File ".saurus\installer\SaurusRemote.iss"
 $appManifest = Require-File ".saurus\installer\SaurusRemote.requireAdministrator.manifest"
 $manifestTool = Require-File ".saurus\installer\Set-RequireAdministratorManifest.ps1"
+$launcherSource = Require-File ".saurus\installer\SaurusRemoteLauncher.cs"
+$launcherBuild = Require-File ".saurus\installer\Build-SaurusRemoteLauncher.ps1"
+$executionLevelTest = Require-File ".saurus\installer\Test-SaurusExecutionLevels.ps1"
 $workflow = Require-File ".github\workflows\build-saurus-remote-windows.yml"
 $localBuild = Require-File ".saurus\scripts\Build-SaurusRemote.ps1"
 
@@ -105,10 +108,16 @@ foreach ($required in @(
 
 $manifestText = [IO.File]::ReadAllText($appManifest)
 if (-not $manifestText.Contains('level="requireAdministrator"')) {
-    throw "O executavel principal nao exige elevacao administrativa."
+    throw "O launcher nao exige elevacao administrativa."
 }
 if ($manifestText.Contains('level="asInvoker"')) {
-    throw "O executavel principal ainda permite execucao sem elevacao."
+    throw "O manifesto do launcher ainda permite execucao sem elevacao."
+}
+$launcherBuildText = [IO.File]::ReadAllText($launcherBuild)
+$executionLevelText = [IO.File]::ReadAllText($executionLevelTest)
+if (-not $launcherBuildText.Contains("SAURUS_REMOTE_SPLIT_ELEVATION_LAUNCHER_V1") -or
+    -not $executionLevelText.Contains("SAURUS_REMOTE_SPLIT_ELEVATION_VERIFY_V1")) {
+    throw "Isolamento de elevacao entre launcher e motor ausente."
 }
 $manifestToolText = [IO.File]::ReadAllText($manifestTool)
 if (-not $manifestToolText.Contains("SAURUS_REMOTE_ALWAYS_ADMIN_MANIFEST_V1")) {
@@ -158,15 +167,15 @@ foreach ($required in @(
         throw "Protecao esperada no instalador nao encontrada: $required"
     }
 }
-if ([regex]::Matches($issText, '(?m)^Filename: "\{app\}\\\{#AppExeName\}"').Count -ne 1) {
+if ([regex]::Matches($issText, '(?m)^Filename: "\{app\}\\\{#AppLauncherName\}"').Count -ne 1) {
     throw "A abertura do Saurus Remote deve existir exatamente uma vez na secao [Run]."
 }
 if ($issText.Contains("runasoriginaluser")) {
     throw "A abertura final ainda reduz os privilegios para o usuario original."
 }
 foreach ($shortcut in @(
-    'Name: "{autoprograms}\Saurus Remote"; Filename: "{app}\{#AppExeName}"; WorkingDir: "{app}"',
-    'Name: "{autodesktop}\Saurus Remote"; Filename: "{app}\{#AppExeName}"; WorkingDir: "{app}"'
+    'Name: "{autoprograms}\Saurus Remote"; Filename: "{app}\{#AppLauncherName}"; WorkingDir: "{app}"',
+    'Name: "{autodesktop}\Saurus Remote"; Filename: "{app}\{#AppLauncherName}"; WorkingDir: "{app}"'
 )) {
     if (-not $issText.Contains($shortcut)) {
         throw "Atalho administrativo esperado nao encontrado: $shortcut"
@@ -174,7 +183,7 @@ foreach ($shortcut in @(
 }
 
 Write-Host "[OK] Interface protegida contra corrupcao CP850/UTF-8."
-Write-Host "[OK] Executavel principal e atalhos exigem administrador."
+Write-Host "[OK] Launcher e atalhos exigem administrador; motor preserva service/server/tray."
 Write-Host "[OK] Servidor e chave Saurus sao reforcados no inicio e nos perfis instalados."
 Write-Host "[OK] Servico precisa permanecer estavel antes da conclusao do instalador."
 Write-Host "[OK] Abertura final preserva a elevacao administrativa do setup."

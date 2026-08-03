@@ -33,7 +33,7 @@ SaurusRemote.exe --uninstall
 
 ## Elevação
 
-O launcher deve usar `asInvoker`. Para instalar/atualizar:
+O launcher de interface instalado usa `requireAdministrator`; o motor multiuso permanece `asInvoker/default`. Para instalar/atualizar:
 
 ```text
 Launcher → helper elevado assinado → operação autorizada → JSON de resultado

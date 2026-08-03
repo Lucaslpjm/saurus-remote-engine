@@ -11,7 +11,7 @@ SaurusRemoteDiagnostics.exe     coleta sanitizada de diagnóstico
 SaurusRemote (serviço)          host de acesso não assistido
 ```
 
-O launcher deve executar como `asInvoker`. Instalação, alteração de serviço e atualização devem passar por um helper pequeno, assinado, com comandos limitados. A sessão remota é aberta pelo `SaurusRemote.exe`, cuja interface Flutter já recebe a identidade visual Saurus.
+O launcher de entrada do Windows executa como `requireAdministrator` e inicia somente a interface. O motor `SaurusRemote.exe` permanece `asInvoker/default`, permitindo que o serviço crie os processos `--server` e `--tray` na sessão correta. Instalação, alteração de serviço e atualização devem passar por helpers pequenos, assinados e com comandos limitados.
 
 ## Isolamento
 

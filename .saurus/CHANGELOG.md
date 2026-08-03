@@ -1,9 +1,9 @@
 ## 1.4.9-saurus.3.2.3.5
 
-- Restaura o manifesto `requireAdministrator` no executavel instalado e no portatil.
-- Garante que os atalhos da area de trabalho e do menu Iniciar abram o executavel com UAC.
-- Faz a abertura pos-instalacao usar explicitamente `runascurrentuser`, preservando a elevacao do setup.
-- Adiciona contratos estaticos contra regressao para `asInvoker` e `runasoriginaluser`.
+- Isola o manifesto `requireAdministrator` em `SaurusRemoteLauncher.exe`, evitando que a elevacao bloqueie os modos `--service`, `--server` e `--tray` do motor.
+- Garante que os atalhos da area de trabalho, menu Iniciar e abertura pos-instalacao usem o launcher com UAC.
+- Mantem o portatil administrativo e restaura o motor instalado ao nivel `asInvoker/default` esperado pelo Windows.
+- Adiciona validacao dos manifestos incorporados para impedir regressao na separacao de privilegios.
 - Remove referencias visuais ao RustDesk da barra de titulo, dashboard, diagnostico, Sobre, 2FA, lousa e plugins.
 - Preserva a senha operacional `ophd0202` e sua exibicao no dashboard sem alteracoes.
 - Inclui avisos de licencas no pacote e troca links publicos pelos recursos do projeto Saurus Remote.

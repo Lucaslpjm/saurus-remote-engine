@@ -142,6 +142,9 @@ $requiredInstallerFiles = @(
     ".saurus\installer\Test-SaurusProductionRelease.ps1",
     ".saurus\installer\Uninstall-SaurusRemote.ps1",
     ".saurus\installer\Set-RequireAdministratorManifest.ps1",
+    ".saurus\installer\Build-SaurusRemoteLauncher.ps1",
+    ".saurus\installer\Test-SaurusExecutionLevels.ps1",
+    ".saurus\installer\SaurusRemoteLauncher.cs",
     ".saurus\installer\SaurusRemote.requireAdministrator.manifest",
     ".saurus\installer\SaurusRemote_default.toml"
 )
@@ -153,7 +156,7 @@ foreach ($relative in $requiredInstallerFiles) {
         Write-Host "[OK] Instalador: $relative"
     }
 }
-Check-FileContains ".saurus\installer\SaurusRemote.requireAdministrator.manifest" 'level="requireAdministrator"' "Aplicativo exige elevacao administrativa"
+Check-FileContains ".saurus\installer\SaurusRemote.requireAdministrator.manifest" 'level="requireAdministrator"' "Launcher exige elevacao administrativa"
 Check-FileContains ".saurus\installer\SaurusRemote_default.toml" "view_style = 'adaptive'" "Escala adaptável no instalador"
 Check-FileContains ".saurus\installer\SaurusRemote_default.toml" "disable_audio = 'Y'" "Som desativado no instalador"
 Check-FileContains ".saurus\installer\Configure-SaurusRemote.ps1" "SAURUS_REMOTE_HEADLESS_POSTINSTALL_V4" "Configurador headless"
@@ -213,7 +216,9 @@ Write-Host "[OK] Verificacao de senha em arquivos de configuracao concluida"
 # SAURUS_REMOTE_UTF8_ALWAYS_ADMIN_VERIFY_V2
 Check-FileContains ".saurus\tools\repair_saurus_utf8_ui.py" "MOJIBAKE_MARKERS" "Protecao UTF-8 da interface"
 Check-FileContains ".saurus\scripts\Apply-SaurusProductionUx.ps1" "SAURUS_REMOTE_PRODUCTION_UX_PIPELINE_V3" "Pipeline UTF-8 da interface"
-Check-FileContains ".saurus\installer\SaurusRemote.requireAdministrator.manifest" 'level="requireAdministrator"' "Elevacao obrigatoria do aplicativo"
+Check-FileContains ".saurus\installer\Build-SaurusRemoteLauncher.ps1" "SAURUS_REMOTE_SPLIT_ELEVATION_LAUNCHER_V1" "Launcher administrativo isolado"
+Check-FileContains ".saurus\installer\Test-SaurusExecutionLevels.ps1" "SAURUS_REMOTE_SPLIT_ELEVATION_VERIFY_V1" "Validacao da elevacao isolada"
+Check-FileContains ".saurus\installer\SaurusRemote.iss" "AppLauncherName" "Atalhos usam launcher administrativo"
 Check-FileNotContains ".saurus\installer\SaurusRemote.requireAdministrator.manifest" 'level="asInvoker"' "Execucao sem elevacao indevida"
 Check-FileContains ".saurus\installer\SaurusRemote.iss" "runascurrentuser" "Abertura final preserva elevacao"
 Check-FileNotContains ".saurus\installer\SaurusRemote.iss" "runasoriginaluser" "Abertura final sem elevacao indevida"
