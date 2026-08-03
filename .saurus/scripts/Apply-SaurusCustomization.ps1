@@ -139,10 +139,21 @@ $privacyTopmostPath = Resolve-SourceFile "src\privacy_mode\win_topmost_window.rs
 $windowsMainPath = Resolve-SourceFile "flutter\windows\runner\main.cpp"
 $runnerRcPath = Resolve-SourceFile "flutter\windows\runner\Runner.rc"
 $commonDartPath = Resolve-SourceFile "flutter\lib\common.dart"
+$langDispatcherPath = Resolve-SourceFile "src\lang.rs"
+$auth2faPath = Resolve-SourceFile "src\auth_2fa.rs"
+$whiteboardWindowsPath = Resolve-SourceFile "src\whiteboard\windows.rs"
+$trayPath = Resolve-SourceFile "src\tray.rs"
+$pluginManagerPath = Resolve-SourceFile "src\plugin\manager.rs"
+$pluginCallbackPath = Resolve-SourceFile "src\plugin\callback_ext.rs"
 $remoteToolbarPath = Resolve-SourceFile "flutter\lib\desktop\widgets\remote_toolbar.dart"
+$tabbarPath = Resolve-SourceFile "flutter\lib\desktop\widgets\tabbar_widget.dart"
 $pubspecPath = Resolve-SourceFile "flutter\pubspec.yaml"
 $desktopHomePath = Resolve-SourceFile "flutter\lib\desktop\pages\desktop_home_page.dart"
 $desktopSettingsPath = Resolve-SourceFile "flutter\lib\desktop\pages\desktop_setting_page.dart"
+$desktopConnectionPath = Resolve-SourceFile "flutter\lib\desktop\pages\connection_page.dart"
+$desktopInstallPath = Resolve-SourceFile "flutter\lib\desktop\pages\install_page.dart"
+$mobileConnectionPath = Resolve-SourceFile "flutter\lib\mobile\pages\connection_page.dart"
+$mobileSettingsPath = Resolve-SourceFile "flutter\lib\mobile\pages\settings_page.dart"
 
 # 1. Identidade interna: separa serviço, IPC, executável e configurações do RustDesk original.
 Replace-LiteralRequired $configPath `
@@ -259,6 +270,52 @@ Insert-BeforeMarkerRequired $windowsMainPath `
     $cppInsertion `
     "SAURUS_REMOTE_DISPLAY_NAME" `
     "Título das janelas Windows"
+
+# 3.1. Identidade visual completa no Windows. O mecanismo de tradução upstream já
+# substitui o nome do produto para clientes customizados, mas exclui alguns textos.
+# Na edição Saurus, toda ocorrência traduzida deve usar o nome configurado.
+$translationBrandPattern = 'if s\.contains\("RustDesk"\)\s*&& !name\.starts_with\("upgrade_rustdesk_server_pro"\)\s*&& name != "powered_by_me"\s*\{'
+Replace-RegexRequired $langDispatcherPath `
+    $translationBrandPattern `
+    'if s.contains("RustDesk") { // SAURUS_REMOTE_TRANSLATED_BRAND' `
+    "Substituição visual da marca nas traduções" `
+    "SAURUS_REMOTE_TRANSLATED_BRAND"
+
+Replace-RegexRequired $tabbarPath `
+    'child: const Text\(\s*"RustDesk",' `
+    "child: const Text(`n                              `"$DisplayName`"," `
+    "Título da barra de abas" `
+    $DisplayName
+
+Replace-LiteralRequired $auth2faPath `
+    'const ISSUER: &str = "RustDesk";' `
+    ('const ISSUER: &str = "' + $DisplayName + '"; // SAURUS_REMOTE_2FA_ISSUER') `
+    "Emissor visual do 2FA"
+
+Replace-LiteralRequired $whiteboardWindowsPath `
+    '.with_title("RustDesk whiteboard")' `
+    ('.with_title("' + $DisplayName + ' - lousa") // SAURUS_REMOTE_WHITEBOARD_TITLE') `
+    "Título da lousa remota"
+
+$trayStopServicePattern = 'let hide_stop_service = crate::ui_interface::get_builtin_option\(\s*hbb_common::config::keys::OPTION_HIDE_STOP_SERVICE,\s*\) == "Y";'
+Replace-RegexRequired $trayPath `
+    $trayStopServicePattern `
+    'let hide_stop_service = true; // SAURUS_REMOTE_MANAGED_SERVICE_MENU' `
+    "Remoção da ação de parar o serviço gerenciado" `
+    "SAURUS_REMOTE_MANAGED_SERVICE_MENU"
+
+Replace-LiteralRequired $pluginManagerPath `
+    '"RustDesk wants to install then plugin"' `
+    '"Saurus Remote precisa de permissão para instalar o plugin"' `
+    "Mensagem de instalação de plugin"
+Replace-LiteralRequired $pluginManagerPath `
+    '"RustDesk wants to uninstall the plugin"' `
+    '"Saurus Remote precisa de permissão para remover o plugin"' `
+    "Mensagem de remoção de plugin"
+Replace-LiteralRequired $pluginCallbackPath `
+    'please contact the RustDesk team for support.' `
+    'entre em contato com o suporte do Saurus Remote.' `
+    "Mensagem de suporte de plugin"
 
 # 4. Segurança operacional do motor.
 # A senha fixa é gravada diretamente pelo processo do serviço e reaplicada a cada inicialização.
@@ -455,9 +512,13 @@ Replace-RegexRequired $coreMainPath `
     "SAURUS_REMOTE_MANAGED_UPDATE"
 
 # 5. Metadados do executável.
+$copyrightSymbol = [char]0x00A9
 Replace-LiteralRequired $cargoPath 'authors = ["rustdesk <info@rustdesk.com>"]' 'authors = ["RustDesk contributors <info@rustdesk.com>", "Saurus Software"]' "Autores preservando atribuição upstream"
 Replace-LiteralRequired $cargoPath 'description = "RustDesk Remote Desktop"' 'description = "Saurus Remote - acesso remoto corporativo"' "Descrição do pacote"
-Replace-LiteralRequired $cargoPath 'LegalCopyright = "Copyright © 2026 Purslane Tech Pte. Ltd. All rights reserved."' 'LegalCopyright = "Copyright © 2026 RustDesk contributors e Saurus Software. Consulte os avisos de licença."' "Copyright do binário"
+Replace-LiteralRequired $cargoPath `
+    ('LegalCopyright = "Copyright {0} 2026 Purslane Tech Pte. Ltd. All rights reserved."' -f $copyrightSymbol) `
+    ('LegalCopyright = "Copyright {0} 2026 Saurus Software; componentes de terceiros conforme AGPL-3.0."' -f $copyrightSymbol) `
+    "Copyright do binário"
 Replace-LiteralRequired $cargoPath 'ProductName = "RustDesk"' 'ProductName = "Saurus Remote"' "ProductName WinRes"
 Replace-LiteralRequired $cargoPath 'FileDescription = "RustDesk Remote Desktop"' 'FileDescription = "Saurus Remote - acesso remoto corporativo"' "FileDescription WinRes"
 Replace-LiteralRequired $cargoPath 'OriginalFilename = "rustdesk.exe"' ("OriginalFilename = `"{0}.exe`"" -f $InternalName) "OriginalFilename WinRes"
@@ -467,7 +528,10 @@ Replace-LiteralRequired $cargoPath 'identifier = "com.carriez.rustdesk"' 'identi
 Replace-LiteralRequired $runnerRcPath 'VALUE "CompanyName", "Purslane Tech Pte. Ltd." "\0"' 'VALUE "CompanyName", "Saurus Software" "\0"' "CompanyName do runner"
 Replace-LiteralRequired $runnerRcPath 'VALUE "FileDescription", "RustDesk Remote Desktop" "\0"' 'VALUE "FileDescription", "Saurus Remote - acesso remoto corporativo" "\0"' "Descrição do runner"
 Replace-LiteralRequired $runnerRcPath 'VALUE "InternalName", "rustdesk" "\0"' ("VALUE `"InternalName`", `"{0}`" `"\0`"" -f $InternalName) "InternalName do runner"
-Replace-LiteralRequired $runnerRcPath 'VALUE "LegalCopyright", "Copyright © 2026 Purslane Tech Pte. Ltd. All rights reserved." "\0"' 'VALUE "LegalCopyright", "Copyright © 2026 Saurus Software; componentes RustDesk conforme AGPL-3.0." "\0"' "Copyright do runner"
+Replace-LiteralRequired $runnerRcPath `
+    ('VALUE "LegalCopyright", "Copyright {0} 2026 Purslane Tech Pte. Ltd. All rights reserved." "\0"' -f $copyrightSymbol) `
+    ('VALUE "LegalCopyright", "Copyright {0} 2026 Saurus Software; componentes de terceiros conforme AGPL-3.0." "\0"' -f $copyrightSymbol) `
+    "Copyright do runner"
 Replace-LiteralRequired $runnerRcPath 'VALUE "OriginalFilename", "rustdesk.exe" "\0"' ("VALUE `"OriginalFilename`", `"{0}.exe`" `"\0`"" -f $InternalName) "Nome original do runner"
 Replace-LiteralRequired $runnerRcPath 'VALUE "ProductName", "RustDesk" "\0"' 'VALUE "ProductName", "Saurus Remote" "\0"' "ProductName do runner"
 
@@ -572,6 +636,87 @@ Replace-LiteralRequired $desktopSettingsPath `
     '    if (!bind.isDisableAccount()) SettingsTabKey.account,' `
     '    // SAURUS_REMOTE_NO_ACCOUNT: login e conta ocultos nesta fase.' `
     "Aba de conta removida"
+
+# A tela Sobre deve representar o produto Saurus. A atribuição upstream permanece
+# disponível em licenses/ e no link de licenças de terceiros.
+Replace-LiteralRequired $desktopSettingsPath `
+    "_Card(title: translate('About RustDesk')," `
+    "_Card(title: 'Sobre o Saurus Remote'," `
+    "Título da tela Sobre"
+Replace-LiteralRequired $desktopSettingsPath `
+    "launchUrlString('https://rustdesk.com/privacy.html');" `
+    "launchUrlString('https://github.com/Lucaslpjm/saurus-remote-engine/blob/saurus/1.4.9/.saurus/LICENSES/RustDesk-AGPL-3.0-NOTICE.txt');" `
+    "Link de licenças de terceiros"
+Replace-LiteralRequired $desktopSettingsPath `
+    "translate('Privacy Statement')," `
+    "'Licenças de terceiros'," `
+    "Rótulo de licenças de terceiros"
+Replace-LiteralRequired $desktopSettingsPath `
+    "launchUrlString('https://rustdesk.com');" `
+    "launchUrlString('https://github.com/Lucaslpjm/saurus-remote-engine');" `
+    "Link do projeto Saurus Remote"
+Replace-LiteralRequired $desktopSettingsPath `
+    "translate('Website')," `
+    "'Projeto Saurus Remote'," `
+    "Rótulo do projeto Saurus Remote"
+Replace-LiteralRequired $desktopSettingsPath `
+    'decoration: const BoxDecoration(color: Color(0xFF2c8cff)),' `
+    'decoration: const BoxDecoration(color: Color(0xFF111C35)),' `
+    "Cor corporativa da tela Sobre"
+Replace-LiteralRequired $desktopSettingsPath `
+    'Purslane Tech Pte. Ltd.' `
+    'Saurus Software' `
+    "Copyright da tela Sobre"
+
+Replace-LiteralRequired $commonDartPath `
+    "launchUrl(Uri.parse('https://rustdesk.com'));" `
+    "launchUrl(Uri.parse('https://github.com/Lucaslpjm/saurus-remote-engine'));" `
+    "Link de atribuição do cliente customizado"
+Replace-LiteralRequired $commonDartPath `
+    'debugPrint("Start closing RustDesk...");' `
+    'debugPrint("Start closing Saurus Remote...");' `
+    "Identidade do encerramento no log"
+
+# Links e rótulos que podem aparecer em telas secundárias também devem apontar
+# para o produto Saurus, mesmo quando a tela não faz parte do dashboard principal.
+$projectUrl = 'https://github.com/Lucaslpjm/saurus-remote-engine'
+$thirdPartyNoticeUrl = 'https://github.com/Lucaslpjm/saurus-remote-engine/blob/saurus/1.4.9/.saurus/LICENSES/RustDesk-AGPL-3.0-NOTICE.txt'
+Replace-LiteralRequired $desktopInstallPath `
+    'https://rustdesk.com/privacy.html' `
+    $thirdPartyNoticeUrl `
+    "Link visual do contrato no instalador"
+Replace-LiteralRequired $desktopConnectionPath `
+    'https://rustdesk.com/pricing' `
+    $projectUrl `
+    "Link de orientação do servidor público"
+Replace-LiteralRequired $desktopHomePath `
+    'https://rustdesk.com/download' `
+    $projectUrl `
+    "Link de download exibido no desktop"
+Replace-LiteralRequired $desktopHomePath `
+    'https://github.com/rustdesk/rustdesk/releases/tag/${bind.mainGetNewVersion()}' `
+    'https://github.com/Lucaslpjm/saurus-remote-engine/blob/saurus/1.4.9/.saurus/CHANGELOG.md' `
+    "Link visual do changelog"
+Replace-LiteralRequired $mobileConnectionPath `
+    'https://rustdesk.com/download' `
+    $projectUrl `
+    "Link de download exibido no mobile"
+Replace-LiteralRequired $mobileSettingsPath `
+    'https://rustdesk.com/privacy.html' `
+    $thirdPartyNoticeUrl `
+    "Link de licenças de terceiros no mobile"
+Replace-LiteralRequired $mobileSettingsPath `
+    'https://rustdesk.com/' `
+    $projectUrl `
+    "Links do projeto na tela Sobre mobile"
+Replace-LiteralRequired $mobileSettingsPath `
+    "Text('rustdesk.com'," `
+    "Text('Projeto Saurus Remote'," `
+    "Rótulos do projeto na tela Sobre mobile"
+Replace-LiteralRequired $mobileSettingsPath `
+    "title: Text(translate('About RustDesk'))," `
+    "title: Text('Sobre o Saurus Remote')," `
+    "Título da tela Sobre mobile"
 
 $accountDependentOptionPattern = '    if \(!bind\.isDisableAccount\(\)\) \{\s*children\.add\(_OptionCheckBox\(\s*context,\s*''note-at-conn-end-tip'',\s*kOptionAllowAskForNoteAtEndOfConnection,\s*isServer: false,\s*optSetter: \(key, value\) async \{\s*if \(value && !gFFI\.userModel\.isLogin\) \{\s*final res = await loginDialog\(\);\s*if \(res != true\) return;\s*\}\s*await mainSetLocalBoolOption\(key, value\);\s*\},\s*\)\);\s*\}'
 Replace-RegexRequired $desktopSettingsPath `
@@ -726,7 +871,7 @@ $saurusHomeWidgets = @'
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Motor RustDesk 1.4.9',
+                  'Edição corporativa',
                   style: TextStyle(color: _saurusMuted, fontSize: 11),
                 ),
                 SizedBox(height: 5),

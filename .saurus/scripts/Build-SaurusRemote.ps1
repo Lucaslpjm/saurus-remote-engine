@@ -3,7 +3,8 @@ param(
     [Parameter(Mandatory = $true)]
     [string]$SourceRoot,
     [string]$OutputRoot = "",
-    [string]$BuildLabel = "saurus.3.1.4.1",
+    [string]$BuildLabel = "saurus.3.2.3.5",
+    [ValidateRange(0, 65535)][int]$VersionRevision = 5,
     [switch]$ApplyCustomization,
     [switch]$WithoutHwCodec,
     [switch]$WithoutVram,
@@ -22,6 +23,7 @@ if ($BuildLabel -notmatch '^[A-Za-z0-9][A-Za-z0-9._-]{0,39}$') {
     throw "BuildLabel invalido. Use apenas letras, numeros, ponto, sublinhado e hifen (maximo 40 caracteres)."
 }
 $ProductVersion = "1.4.9-$BuildLabel"
+$NumericVersion = "1.4.9.$VersionRevision"
 
 function Require-Command {
     param([string]$Name)
@@ -61,6 +63,8 @@ function Sign-Files {
         ForEach-Object {
             & $signTool sign /sha1 $Thumbprint /fd SHA256 /tr $TimestampUrl /td SHA256 $_.FullName
             if ($LASTEXITCODE -ne 0) { throw "Falha ao assinar $($_.FullName)." }
+            & $signTool verify /pa /all $_.FullName
+            if ($LASTEXITCODE -ne 0) { throw "Falha ao validar a assinatura de $($_.FullName)." }
         }
 }
 
@@ -131,17 +135,25 @@ try {
     if (-not (Test-Path -LiteralPath $saurusExe -PathType Leaf)) { throw "SaurusRemote.exe nao encontrado no pacote final." }
     if (-not (Test-Path -LiteralPath (Join-Path $packagePath "librustdesk.dll") -PathType Leaf)) { throw "librustdesk.dll nao encontrada." }
 
-    # O executavel principal usa asInvoker; a elevacao pertence somente ao instalador e ao servico.
+    # O executavel principal sempre solicita elevacao, inclusive pelos atalhos instalados.
     & (Join-Path $PSScriptRoot "..\installer\Set-RequireAdministratorManifest.ps1") `
         -Executable $saurusExe `
         -Manifest (Join-Path $PSScriptRoot "..\installer\SaurusRemote.requireAdministrator.manifest")
-    if ($LASTEXITCODE -ne 0) { throw "Falha ao aplicar manifesto asInvoker." }
+    if ($LASTEXITCODE -ne 0) { throw "Falha ao aplicar manifesto requireAdministrator." }
 
     $defaultsDir = Join-Path $packagePath "defaults"
     New-Item -ItemType Directory -Path $defaultsDir -Force | Out-Null
     Copy-Item `
         -LiteralPath (Join-Path $PSScriptRoot "..\installer\SaurusRemote_default.toml") `
         -Destination (Join-Path $defaultsDir "SaurusRemote_default.toml") `
+        -Force
+
+    $licensesDir = Join-Path $packagePath "licenses"
+    New-Item -ItemType Directory -Path $licensesDir -Force | Out-Null
+    Copy-Item -LiteralPath (Join-Path $Root "LICENCE") -Destination (Join-Path $licensesDir "AGPL-3.0.txt") -Force
+    Copy-Item `
+        -LiteralPath (Join-Path $PSScriptRoot "..\LICENSES\RustDesk-AGPL-3.0-NOTICE.txt") `
+        -Destination (Join-Path $licensesDir "THIRD-PARTY-NOTICE.txt") `
         -Force
 
     Sign-Files -Directory $packagePath -Thumbprint $SigningCertificateThumbprint
@@ -153,6 +165,7 @@ try {
         internalName = "SaurusRemote"
         upstreamVersion = "1.4.9"
         productVersion = $ProductVersion
+        numericProductVersion = $NumericVersion
         buildUtc = [DateTime]::UtcNow.ToString("o")
         architecture = "windows-x64"
         executable = "SaurusRemote.exe"
@@ -165,7 +178,8 @@ try {
         passwordProvisioning = "normal/service/server startup enforcement"
         defaultViewStyle = "adaptive"
         defaultDisableAudio = $true
-        requiresAdministrator = $false
+        requiresAdministrator = $true
+        applicationExecutionLevel = "requireAdministrator"
         definitiveInstallerIncluded = $true
         upstreamSelfUpdateEnabled = $false
         signed = -not [string]::IsNullOrWhiteSpace($SigningCertificateThumbprint)
@@ -204,11 +218,13 @@ try {
         & (Join-Path $PSScriptRoot "..\installer\Set-RequireAdministratorManifest.ps1") `
             -Executable $portablePath `
             -Manifest (Join-Path $PSScriptRoot "..\installer\SaurusRemote.requireAdministrator.manifest")
-        if ($LASTEXITCODE -ne 0) { throw "Falha ao aplicar manifesto asInvoker ao portatil." }
+        if ($LASTEXITCODE -ne 0) { throw "Falha ao aplicar manifesto requireAdministrator ao portatil." }
         if ($SigningCertificateThumbprint) {
             $signTool = Find-SignTool
             & $signTool sign /sha1 $SigningCertificateThumbprint /fd SHA256 /tr $TimestampUrl /td SHA256 $portablePath
             if ($LASTEXITCODE -ne 0) { throw "Falha ao assinar o executavel portatil." }
+            & $signTool verify /pa /all $portablePath
+            if ($LASTEXITCODE -ne 0) { throw "A assinatura do executavel portatil nao foi validada." }
         }
     }
 
@@ -225,6 +241,7 @@ try {
             "/DSourceRoot=$packagePath" `
             "/DOutputDir=$OutputRoot" `
             "/DProductVersion=$ProductVersion" `
+            "/DNumericVersion=$NumericVersion" `
             "/DInstallerRoot=$installerRoot" `
             "/DBrandingRoot=$brandingRoot" `
             (Join-Path $installerRoot "SaurusRemote.iss")
@@ -235,6 +252,8 @@ try {
             $signTool = Find-SignTool
             & $signTool sign /sha1 $SigningCertificateThumbprint /fd SHA256 /tr $TimestampUrl /td SHA256 $setupPath
             if ($LASTEXITCODE -ne 0) { throw "Falha ao assinar o instalador definitivo." }
+            & $signTool verify /pa /all $setupPath
+            if ($LASTEXITCODE -ne 0) { throw "A assinatura do instalador definitivo nao foi validada." }
         }
     } else {
         Write-Warning "Inno Setup 6 nao encontrado. ZIP e portatil serao gerados, mas o instalador Setup nao sera criado localmente."

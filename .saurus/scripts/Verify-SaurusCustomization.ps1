@@ -44,6 +44,39 @@ function Check-FileNotContains {
     }
 }
 
+function Check-JsonPropertyValue {
+    param(
+        [string]$RelativePath,
+        [string[]]$PropertyPath,
+        [object]$Expected,
+        [string]$Description
+    )
+
+    $path = Join-Path $Root $RelativePath
+    if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
+        $failures.Add("Arquivo ausente: $RelativePath")
+        return
+    }
+
+    try {
+        $value = [System.IO.File]::ReadAllText($path) | ConvertFrom-Json
+        foreach ($propertyName in $PropertyPath) {
+            $property = $value.PSObject.Properties[$propertyName]
+            if ($null -eq $property) {
+                throw "Propriedade ausente: $($PropertyPath -join '.')"
+            }
+            $value = $property.Value
+        }
+        if ($value -ne $Expected) {
+            throw "Valor inesperado para $($PropertyPath -join '.')"
+        }
+        Write-Host "[OK] $Description"
+    }
+    catch {
+        $failures.Add("$Description nao encontrada em $RelativePath")
+    }
+}
+
 Check-FileContains "Cargo.toml" 'version = "1.4.9"' "Versao upstream 1.4.9"
 Check-FileContains "libs\hbb_common\src\config.rs" ("RwLock::new(`"{0}`".to_owned())" -f $InternalName) "Identidade interna Saurus"
 Check-FileContains "libs\hbb_common\src\config.rs" ('pub const RENDEZVOUS_SERVERS: &[&str] = &["' + $RendezvousServer + '"];') "Servidor Saurus padrao"
@@ -95,11 +128,11 @@ Check-FileContains "flutter\lib\desktop\pages\desktop_setting_page.dart" 'SAURUS
 Check-FileContains "flutter\lib\desktop\pages\desktop_setting_page.dart" 'SAURUS_REMOTE_NO_LOGIN_DEPENDENT_OPTIONS' "Opções dependentes de login removidas"
 Check-FileContains "flutter\lib\desktop\widgets\remote_toolbar.dart" 'toolbarItems.add(const _SaurusBrand());' "Marca Saurus na barra remota"
 Check-FileContains "flutter\lib\desktop\widgets\remote_toolbar.dart" 'class _SaurusBrand extends StatelessWidget' "Widget Saurus da sessao"
-Check-FileContains "SAURUS_CUSTOMIZATION.json" '"permanentPasswordEmbedded": true' "Política de senha fixa registrada"
-Check-FileContains "SAURUS_CUSTOMIZATION.json" '"fixedPasswordPolicy": true' "Política de senha única registrada"
-Check-FileContains "SAURUS_CUSTOMIZATION.json" ('"installerRegistryKey": "' + $InstallerRegistryKey + '"') "Chave de instalador registrada no manifesto"
-Check-FileContains "SAURUS_CUSTOMIZATION.json" '"privacyBrokerExecutable": "RuntimeBroker_saurusremote.exe"' "Broker registrado no manifesto"
-Check-FileContains "SAURUS_CUSTOMIZATION.json" '"upstreamSelfUpdateEnabled": false' "Atualizador upstream desativado"
+Check-JsonPropertyValue "SAURUS_CUSTOMIZATION.json" @("security", "permanentPasswordEmbedded") $true "Política de senha fixa registrada"
+Check-JsonPropertyValue "SAURUS_CUSTOMIZATION.json" @("security", "fixedPasswordPolicy") $true "Política de senha única registrada"
+Check-JsonPropertyValue "SAURUS_CUSTOMIZATION.json" @("product", "installerRegistryKey") $InstallerRegistryKey "Chave de instalador registrada no manifesto"
+Check-JsonPropertyValue "SAURUS_CUSTOMIZATION.json" @("product", "privacyBrokerExecutable") "RuntimeBroker_saurusremote.exe" "Broker registrado no manifesto"
+Check-JsonPropertyValue "SAURUS_CUSTOMIZATION.json" @("security", "upstreamSelfUpdateEnabled") $false "Atualizador upstream desativado"
 
 $requiredInstallerFiles = @(
     ".saurus\installer\SaurusRemote.iss",
@@ -120,7 +153,7 @@ foreach ($relative in $requiredInstallerFiles) {
         Write-Host "[OK] Instalador: $relative"
     }
 }
-Check-FileContains ".saurus\installer\SaurusRemote.requireAdministrator.manifest" 'level="asInvoker"' "Aplicativo executado no contexto do usuario"
+Check-FileContains ".saurus\installer\SaurusRemote.requireAdministrator.manifest" 'level="requireAdministrator"' "Aplicativo exige elevacao administrativa"
 Check-FileContains ".saurus\installer\SaurusRemote_default.toml" "view_style = 'adaptive'" "Escala adaptável no instalador"
 Check-FileContains ".saurus\installer\SaurusRemote_default.toml" "disable_audio = 'Y'" "Som desativado no instalador"
 Check-FileContains ".saurus\installer\Configure-SaurusRemote.ps1" "SAURUS_REMOTE_HEADLESS_POSTINSTALL_V4" "Configurador headless"
@@ -177,6 +210,42 @@ foreach ($candidate in $configCandidates) {
 }
 Write-Host "[OK] Verificacao de senha em arquivos de configuracao concluida"
 
+# SAURUS_REMOTE_UTF8_ALWAYS_ADMIN_VERIFY_V2
+Check-FileContains ".saurus\tools\repair_saurus_utf8_ui.py" "MOJIBAKE_MARKERS" "Protecao UTF-8 da interface"
+Check-FileContains ".saurus\scripts\Apply-SaurusProductionUx.ps1" "SAURUS_REMOTE_PRODUCTION_UX_PIPELINE_V3" "Pipeline UTF-8 da interface"
+Check-FileContains ".saurus\installer\SaurusRemote.requireAdministrator.manifest" 'level="requireAdministrator"' "Elevacao obrigatoria do aplicativo"
+Check-FileNotContains ".saurus\installer\SaurusRemote.requireAdministrator.manifest" 'level="asInvoker"' "Execucao sem elevacao indevida"
+Check-FileContains ".saurus\installer\SaurusRemote.iss" "runascurrentuser" "Abertura final preserva elevacao"
+Check-FileNotContains ".saurus\installer\SaurusRemote.iss" "runasoriginaluser" "Abertura final sem elevacao indevida"
+Check-FileContains ".saurus\scripts\Apply-SaurusCustomization.ps1" "SAURUS_REMOTE_ENFORCE_SERVER_CONFIG" "Servidor Saurus reforcado no inicio"
+
+# Contrato visual Windows: nomes técnicos internos podem permanecer, porém nenhuma
+# superfície acessível ao usuário pode promover a identidade upstream.
+Check-FileContains "src\lang.rs" "SAURUS_REMOTE_TRANSLATED_BRAND" "Substituicao de marca nas traducoes"
+Check-FileContains "src\auth_2fa.rs" 'const ISSUER: &str = "Saurus Remote";' "Emissor 2FA Saurus"
+Check-FileNotContains "src\auth_2fa.rs" 'const ISSUER: &str = "RustDesk";' "Emissor 2FA upstream"
+Check-FileContains "src\whiteboard\windows.rs" "SAURUS_REMOTE_WHITEBOARD_TITLE" "Titulo Saurus da lousa"
+Check-FileNotContains "src\whiteboard\windows.rs" 'with_title("RustDesk whiteboard")' "Titulo upstream da lousa"
+Check-FileContains "src\tray.rs" "SAURUS_REMOTE_MANAGED_SERVICE_MENU" "Menu do servico gerenciado"
+Check-FileNotContains "src\plugin\manager.rs" "RustDesk wants" "Mensagens upstream de plugin"
+Check-FileNotContains "src\plugin\callback_ext.rs" "RustDesk team" "Suporte upstream de plugin"
+Check-FileContains "flutter\lib\desktop\widgets\tabbar_widget.dart" '"Saurus Remote",' "Titulo Saurus da barra de abas"
+Check-FileNotContains "flutter\lib\desktop\widgets\tabbar_widget.dart" '"RustDesk",' "Titulo upstream da barra de abas"
+Check-FileContains "flutter\lib\desktop\pages\desktop_setting_page.dart" "Sobre o Saurus Remote" "Tela Sobre Saurus"
+Check-FileNotContains "flutter\lib\desktop\pages\desktop_setting_page.dart" "Purslane Tech Pte. Ltd." "Copyright upstream da tela Sobre"
+Check-FileNotContains "flutter\lib\desktop\pages\desktop_setting_page.dart" "https://rustdesk.com" "Links upstream da tela Sobre"
+Check-FileNotContains "flutter\lib\desktop\pages\desktop_home_page.dart" "Motor RustDesk" "Identidade upstream no dashboard"
+Check-FileNotContains "flutter\lib\common.dart" "launchUrl(Uri.parse('https://rustdesk.com'))" "Link upstream de atribuicao"
+Check-FileNotContains "flutter\lib\common.dart" 'debugPrint("Start closing RustDesk...");' "Nome upstream no log de encerramento"
+Check-FileNotContains "flutter\lib\desktop\pages\install_page.dart" "https://rustdesk.com/privacy.html" "Link upstream no instalador"
+Check-FileNotContains "flutter\lib\desktop\pages\connection_page.dart" "https://rustdesk.com/pricing" "Link upstream na orientação de conexão"
+Check-FileNotContains "flutter\lib\desktop\pages\desktop_home_page.dart" "https://rustdesk.com/download" "Link upstream de download no desktop"
+Check-FileNotContains "flutter\lib\desktop\pages\desktop_home_page.dart" "github.com/rustdesk/rustdesk/releases" "Link upstream de changelog"
+Check-FileNotContains "flutter\lib\mobile\pages\connection_page.dart" "https://rustdesk.com/download" "Link upstream de download no mobile"
+Check-FileNotContains "flutter\lib\mobile\pages\settings_page.dart" "rustdesk.com" "Links upstream na tela Sobre mobile"
+Check-FileContains "flutter\lib\mobile\pages\settings_page.dart" "title: Text('Sobre o Saurus Remote')" "Tela Sobre mobile Saurus"
+Check-FileNotContains "flutter\windows\runner\Runner.rc" "componentes RustDesk" "Nome upstream no copyright do executável"
+
 if ($failures.Count -gt 0) {
     Write-Host ""
     Write-Host "Falhas de validacao:" -ForegroundColor Red
@@ -192,10 +261,3 @@ Write-Host "Servico esperado: $InternalName"
 Write-Host "Executavel esperado: %ProgramFiles%\Saurus Software\Saurus Remote\$InternalName.exe"
 Write-Host "Configuracao do usuario esperada: %APPDATA%\$InternalName"
 Write-Host "O servico e as pastas do RustDesk original nao serao reutilizados."
-# SAURUS_REMOTE_UTF8_ASINVOKER_VERIFY_V1
-Check-FileContains ".saurus\tools\repair_saurus_utf8_ui.py" "MOJIBAKE_MARKERS" "Protecao UTF-8 da interface"
-Check-FileContains ".saurus\scripts\Apply-SaurusProductionUx.ps1" "SAURUS_REMOTE_PRODUCTION_UX_PIPELINE_V3" "Pipeline UTF-8 da interface"
-Check-FileContains ".saurus\installer\SaurusRemote.requireAdministrator.manifest" 'level="asInvoker"' "Aplicativo sem elevacao obrigatoria"
-Check-FileNotContains ".saurus\installer\SaurusRemote.requireAdministrator.manifest" 'level="requireAdministrator"' "Elevacao indevida do aplicativo"
-Check-FileContains ".saurus\installer\SaurusRemote.iss" "runasoriginaluser" "Abertura final como usuario original"
-Check-FileContains ".saurus\scripts\Apply-SaurusCustomization.ps1" "SAURUS_REMOTE_ENFORCE_SERVER_CONFIG" "Servidor Saurus reforcado no inicio"

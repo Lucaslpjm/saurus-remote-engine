@@ -243,7 +243,8 @@ for marker in [
     "SHA256SUMS.txt",
     "Build definitive Saurus Remote installer",
     "SaurusRemote.iss",
-    "requiresAdministrator = $false",
+    "requiresAdministrator = $true",
+    "applicationExecutionLevel = 'requireAdministrator'",
     "definitiveInstallerIncluded = $true",
     "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
 ]:
@@ -309,7 +310,7 @@ installer_config = text("installer/Configure-SaurusRemote.ps1")
 installer_iss = text("installer/SaurusRemote.iss")
 default_toml = text("installer/SaurusRemote_default.toml")
 for marker in [
-    'level="asInvoker"',
+    'level="requireAdministrator"',
     'processorArchitecture="amd64"',
 ]:
     if marker not in installer_manifest:
@@ -324,6 +325,8 @@ for marker in [
     'disable_audio',
     'Preferencias adaptativas, audio desativado e servidor Saurus aplicados.',
     'Servico existente atualizado via Win32_Service.Change.',
+    'SAURUS_REMOTE_SCOPED_CONFIG_ROOTS_V1',
+    '-Profile Domain,Private',
 ]:
     if marker not in installer_config:
         error(f"Configurador headless do instalador incompleto: {marker}")
@@ -334,6 +337,9 @@ for forbidden in [
     'Wait-ServiceMissing',
     'sc.exe create',
     'sc.exe config',
+    '-Profile Any',
+    'System32\\config\\systemprofile',
+    'Users\\Default',
 ]:
     if forbidden in installer_config:
         error(f"Fluxo grafico ou fragil ainda presente no configurador: {forbidden}")
@@ -365,9 +371,10 @@ if "AppId={{1117CE17-506B-4122-A421-69233FCA9C12}" not in installer_iss:
 if "AppId={#AppGuid}" in installer_iss:
     error("AppId antigo ainda expande para uma constante Inno invalida.")
 for marker in [
-    "VersionInfoVersion=1.4.9.0",
-    "VersionInfoProductVersion=1.4.9.0",
+    "VersionInfoVersion={#NumericVersion}",
+    "VersionInfoProductVersion={#NumericVersion}",
     "VersionInfoProductTextVersion={#ProductVersion}",
+    '#ifndef NumericVersion',
 ]:
     if marker not in installer_iss:
         error(f"Diretiva segura de versao ausente no Inno Setup: {marker}")
@@ -380,6 +387,7 @@ for marker in [
     "Compilacao real de preflight do Inno Setup concluida",
     "AppId={{1117CE17-506B-4122-A421-69233FCA9C12}",
     "VersionInfoProductTextVersion",
+    '"/DNumericVersion=$NumericVersion"',
 ]:
     if marker not in installer_preflight:
         error(f"Protecao ausente no preflight do instalador: {marker}")
@@ -464,22 +472,48 @@ for json_file in ROOT.rglob("*.json"):
     except Exception as exc:
         error(f"JSON invalido em {json_file.relative_to(ROOT)}: {exc}")
 
-# SAURUS_REMOTE_UTF8_ASINVOKER_VALIDATION_V1
+# SAURUS_REMOTE_UTF8_ALWAYS_ADMIN_VALIDATION_V1
 utf8_repair = text("tools/repair_saurus_utf8_ui.py")
 if "MOJIBAKE_MARKERS" not in utf8_repair or "cp850" not in utf8_repair:
     error("Protecao CP850/UTF-8 da interface ausente.")
 if "SAURUS_REMOTE_PRODUCTION_UX_PIPELINE_V3" not in text("scripts/Apply-SaurusProductionUx.ps1"):
     error("Pipeline UTF-8 final da interface ausente.")
-if 'level="asInvoker"' not in installer_manifest:
-    error("O aplicativo principal deve usar asInvoker.")
-if 'level="requireAdministrator"' in installer_manifest:
-    error("O aplicativo principal ainda exige elevacao e pode falhar com codigo 740.")
-if "runasoriginaluser" not in installer_iss:
-    error("A abertura final do aplicativo nao retorna ao usuario original.")
+if 'level="requireAdministrator"' not in installer_manifest:
+    error("O aplicativo principal deve exigir elevacao administrativa.")
+if 'level="asInvoker"' in installer_manifest:
+    error("O aplicativo principal ainda permite execucao sem elevacao.")
+if "runascurrentuser" not in installer_iss:
+    error("A abertura final nao preserva a elevacao administrativa do setup.")
+if "runasoriginaluser" in installer_iss:
+    error("A abertura final ainda reduz os privilegios para o usuario original.")
 if "SAURUS_REMOTE_ENFORCE_SERVER_CONFIG" not in apply_script:
     error("O servidor Saurus nao e reforcado em todas as inicializacoes.")
-if "requiresAdministrator = $false" not in workflow:
-    error("O manifesto de entrega ainda declara elevacao obrigatoria para o aplicativo.")
+if "requiresAdministrator = $true" not in workflow:
+    error("O manifesto de entrega nao declara elevacao obrigatoria para o aplicativo.")
+for marker in [
+    "SAURUS_REMOTE_TRANSLATED_BRAND",
+    "SAURUS_REMOTE_2FA_ISSUER",
+    "SAURUS_REMOTE_WHITEBOARD_TITLE",
+    "SAURUS_REMOTE_MANAGED_SERVICE_MENU",
+    "Sobre o Saurus Remote",
+    "Licenças de terceiros",
+]:
+    if marker not in apply_script:
+        error(f"Protecao de identidade visual ausente: {marker}")
+if "Motor RustDesk 1.4.9" in text("tools/apply_saurus_ux_refresh.py"):
+    error("A interface final ainda exibe a identidade do motor upstream.")
+if "InternetAddress.lookup('example.com')" in text("tools/apply_saurus_ux_refresh.py"):
+    error("O diagnostico ainda consulta dominio externo nao relacionado ao produto.")
+manifest_tool = text("installer/Set-RequireAdministratorManifest.ps1")
+if "SAURUS_REMOTE_VERIFY_EMBEDDED_MANIFEST_V1" not in manifest_tool:
+    error("O manifesto administrativo nao e verificado no executavel final.")
+if "verify /pa /all" not in workflow:
+    error("O workflow nao valida as assinaturas Authenticode geradas.")
+if "licenses\\THIRD-PARTY-NOTICE.txt" not in workflow:
+    error("Os avisos de terceiros nao sao incluidos no pacote Windows.")
+portable_requirements = text("../libs/portable/requirements.txt")
+if portable_requirements.strip() != "brotli==1.1.0":
+    error("A dependencia Brotli do empacotador portatil nao esta fixada.")
 
 # SAURUS_REMOTE_DYNAMIC_UX_CONTRACT_SYNC_V1
 ux_pipeline_source = text("scripts/Apply-SaurusProductionUx.ps1")

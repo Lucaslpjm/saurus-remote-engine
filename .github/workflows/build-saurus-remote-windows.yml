@@ -6,7 +6,7 @@ on:
       build_label:
         description: "Identificador da compilacao Saurus"
         required: true
-        default: "saurus.3.2.3.3"
+        default: "saurus.3.2.3.5"
         type: string
       include_remote_printer:
         description: "Incluir driver de impressao remota upstream (desativado por padrao para maximizar coexistencia)"
@@ -24,6 +24,7 @@ env:
   VCPKG_COMMIT_ID: "120deac3062162151622ca4860575a33844ba10b"
   UPSTREAM_VERSION: "1.4.9"
   PRODUCT_VERSION: "1.4.9-${{ inputs.build_label }}"
+  NUMERIC_PRODUCT_VERSION: "1.4.9.${{ github.run_number }}"
   VCPKG_BINARY_SOURCES: "clear;x-gha,readwrite"
 
 jobs:
@@ -59,7 +60,8 @@ jobs:
         shell: pwsh
         run: |
           & .\.saurus\installer\Test-SaurusRemoteInstaller.ps1 `
-            -ProductVersion "1.4.9-${{ inputs.build_label }}"
+            -ProductVersion "1.4.9-${{ inputs.build_label }}" `
+            -NumericVersion "1.4.9.${{ github.run_number }}"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
   generate-bridge:
     uses: ./.github/workflows/bridge.yml
@@ -385,7 +387,7 @@ jobs:
             throw 'Foi encontrado um segundo executavel RustDesk no pacote.'
           }
 
-      - name: Apply application manifest and bundle operational defaults
+      - name: Apply mandatory administrator manifest and bundle operational defaults
         shell: pwsh
         run: |
           & .\.saurus\installer\Set-RequireAdministratorManifest.ps1 `
@@ -396,6 +398,12 @@ jobs:
           Copy-Item `
             -LiteralPath .\.saurus\installer\SaurusRemote_default.toml `
             -Destination .\rustdesk\defaults\SaurusRemote_default.toml `
+            -Force
+          New-Item -ItemType Directory -Path .\rustdesk\licenses -Force | Out-Null
+          Copy-Item -LiteralPath .\LICENCE -Destination .\rustdesk\licenses\AGPL-3.0.txt -Force
+          Copy-Item `
+            -LiteralPath .\.saurus\LICENSES\RustDesk-AGPL-3.0-NOTICE.txt `
+            -Destination .\rustdesk\licenses\THIRD-PARTY-NOTICE.txt `
             -Force
 
       - name: Bundle production UI manifest
@@ -427,6 +435,8 @@ jobs:
             ForEach-Object {
               & $signtool.FullName sign /f $pfxPath /p $env:PFX_PASSWORD /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 $_.FullName
               if ($LASTEXITCODE -ne 0) { throw "Falha ao assinar $($_.FullName)" }
+              & $signtool.FullName verify /pa /all $_.FullName
+              if ($LASTEXITCODE -ne 0) { throw "Falha ao validar a assinatura de $($_.FullName)" }
             }
           Remove-Item -LiteralPath $pfxPath -Force
 
@@ -470,6 +480,8 @@ jobs:
           $portable = Get-ChildItem -LiteralPath .\dist -Filter 'SaurusRemote-*-Windows-x64.exe' -File | Select-Object -First 1
           & $signtool.FullName sign /f $pfxPath /p $env:PFX_PASSWORD /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 $portable.FullName
           if ($LASTEXITCODE -ne 0) { throw 'Falha ao assinar o executavel portatil.' }
+          & $signtool.FullName verify /pa /all $portable.FullName
+          if ($LASTEXITCODE -ne 0) { throw 'A assinatura do executavel portatil nao foi validada.' }
           Remove-Item -LiteralPath $pfxPath -Force
 
       - name: Install Inno Setup compiler
@@ -494,6 +506,7 @@ jobs:
             "/DSourceRoot=$sourceRoot" `
             "/DOutputDir=$outputDir" `
             "/DProductVersion=$env:PRODUCT_VERSION" `
+            "/DNumericVersion=$env:NUMERIC_PRODUCT_VERSION" `
             "/DInstallerRoot=$installerRoot" `
             "/DBrandingRoot=$brandingRoot" `
             .\.saurus\installer\SaurusRemote.iss
@@ -523,6 +536,8 @@ jobs:
           if (-not $setup) { throw 'Instalador final nao encontrado para assinatura.' }
           & $signtool.FullName sign /f $pfxPath /p $env:PFX_PASSWORD /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 $setup.FullName
           if ($LASTEXITCODE -ne 0) { throw 'Falha ao assinar o instalador definitivo.' }
+          & $signtool.FullName verify /pa /all $setup.FullName
+          if ($LASTEXITCODE -ne 0) { throw 'A assinatura do instalador definitivo nao foi validada.' }
           Remove-Item -LiteralPath $pfxPath -Force
 
       - name: Create ZIP, manifest and SHA-256 checksums
@@ -543,6 +558,7 @@ jobs:
               llvm = $env:LLVM_VERSION
               flutter = $env:FLUTTER_VERSION
               vcpkgCommit = $env:VCPKG_COMMIT_ID
+              numericProductVersion = $env:NUMERIC_PRODUCT_VERSION
               flutterEngineSha256 = $env:FLUTTER_ENGINE_SHA256
               usbmmiddSha256 = $env:USBMMIDD_SHA256
             }
@@ -561,8 +577,8 @@ jobs:
             passwordProvisioning = 'normal/service/server startup enforcement'
             defaultViewStyle = 'adaptive'
             defaultDisableAudio = $true
-            requiresAdministrator = $false
-            applicationExecutionLevel = 'asInvoker'
+            requiresAdministrator = $true
+            applicationExecutionLevel = 'requireAdministrator'
             definitiveInstallerIncluded = $true
             upstreamSelfUpdateEnabled = $false
             authenticodeRequested = [bool]::Parse($env:SIGNING_CONFIGURED)

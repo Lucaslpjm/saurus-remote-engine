@@ -5,7 +5,10 @@
   #error OutputDir must be supplied by ISCC /DOutputDir=...
 #endif
 #ifndef ProductVersion
-  #define ProductVersion "1.4.9-saurus.3.1.1"
+  #define ProductVersion "1.4.9-saurus.3.2.3.5"
+#endif
+#ifndef NumericVersion
+  #define NumericVersion "1.4.9.5"
 #endif
 #ifndef InstallerRoot
   #error InstallerRoot must be supplied by ISCC /DInstallerRoot=...
@@ -25,6 +28,9 @@ AppName={#AppName}
 AppVersion={#ProductVersion}
 AppVerName={#AppName} {#ProductVersion}
 AppPublisher={#AppPublisher}
+AppPublisherURL=https://github.com/Lucaslpjm/saurus-remote-engine
+AppSupportURL=https://github.com/Lucaslpjm/saurus-remote-engine/issues
+AppUpdatesURL=https://github.com/Lucaslpjm/saurus-remote-engine/actions
 DefaultDirName={autopf}\Saurus Software\Saurus Remote
 DefaultGroupName=Saurus Remote
 UninstallDisplayIcon={app}\{#AppExeName}
@@ -43,12 +49,12 @@ RestartApplications=no
 UsePreviousAppDir=yes
 SetupLogging=yes
 MinVersion=10.0.17763
-VersionInfoVersion=1.4.9.0
+VersionInfoVersion={#NumericVersion}
 VersionInfoCompany={#AppPublisher}
 VersionInfoDescription=Instalador do Saurus Remote
 VersionInfoProductName={#AppName}
 ; SAURUS_REMOTE_NUMERIC_VERSIONINFO_FIX
-VersionInfoProductVersion=1.4.9.0
+VersionInfoProductVersion={#NumericVersion}
 VersionInfoProductTextVersion={#ProductVersion}
 
 [Files]
@@ -59,11 +65,13 @@ Source: "{#InstallerRoot}\Uninstall-SaurusRemote.ps1"; DestDir: "{app}\tools"; F
 Source: "{#InstallerRoot}\SaurusRemote_default.toml"; DestDir: "{app}\defaults"; Flags: ignoreversion
 
 [Icons]
+; Os atalhos apontam diretamente para o executavel com manifesto requireAdministrator.
 Name: "{autoprograms}\Saurus Remote"; Filename: "{app}\{#AppExeName}"; WorkingDir: "{app}"
 Name: "{autodesktop}\Saurus Remote"; Filename: "{app}\{#AppExeName}"; WorkingDir: "{app}"
 
 [Run]
-Filename: "{app}\{#AppExeName}"; Description: "Abrir o Saurus Remote"; WorkingDir: "{app}"; Flags: nowait postinstall skipifsilent runasoriginaluser
+; postinstall usa o usuario original por padrao; runascurrentuser preserva a elevacao do setup.
+Filename: "{app}\{#AppExeName}"; Description: "Abrir o Saurus Remote"; WorkingDir: "{app}"; Flags: nowait postinstall skipifsilent runascurrentuser
 [UninstallRun]
 Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ""{app}\tools\Uninstall-SaurusRemote.ps1"" -InstallDir ""{app}"""; Flags: runhidden waituntilterminated; RunOnceId: "SaurusRemoteRemoveService"
 

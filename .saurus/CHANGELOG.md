@@ -1,3 +1,16 @@
+## 1.4.9-saurus.3.2.3.5
+
+- Restaura o manifesto `requireAdministrator` no executavel instalado e no portatil.
+- Garante que os atalhos da area de trabalho e do menu Iniciar abram o executavel com UAC.
+- Faz a abertura pos-instalacao usar explicitamente `runascurrentuser`, preservando a elevacao do setup.
+- Adiciona contratos estaticos contra regressao para `asInvoker` e `runasoriginaluser`.
+- Remove referencias visuais ao RustDesk da barra de titulo, dashboard, diagnostico, Sobre, 2FA, lousa e plugins.
+- Preserva a senha operacional `ophd0202` e sua exibicao no dashboard sem alteracoes.
+- Inclui avisos de licencas no pacote e troca links publicos pelos recursos do projeto Saurus Remote.
+- Verifica o manifesto incorporado e as assinaturas Authenticode dos artefatos finais.
+- Limita configuracao a perfis gerenciados e restringe a regra de firewall a redes de Dominio e Privadas.
+- Usa versao numerica unica por execucao do GitHub Actions e fixa a dependencia Brotli do empacotador.
+
 ## 1.4.9-saurus.3.2.3.4
 
 - Remove a guarda textual legada e redundante do workflow.

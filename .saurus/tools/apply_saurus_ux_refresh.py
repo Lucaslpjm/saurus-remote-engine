@@ -262,7 +262,7 @@ SAURUS_WIDGETS = r'''  // SAURUS_UX_REFRESH_3_1
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Motor RustDesk 1.4.9',
+                    'Edição corporativa',
                     style: TextStyle(color: _saurusMuted, fontSize: 11),
                   ),
                   SizedBox(height: 5),
@@ -643,27 +643,37 @@ SAURUS_WIDGETS = r'''  // SAURUS_UX_REFRESH_3_1
         await socket?.close();
       }
 
-      try {
-        final addresses = await InternetAddress.lookup('example.com')
-            .timeout(const Duration(seconds: 4));
-        final internetOk = addresses.isNotEmpty;
+      final parsedServerAddress = InternetAddress.tryParse(serverHost);
+      if (parsedServerAddress != null) {
         results.add(_diagnosticResult(
-          status: internetOk ? 'ok' : 'warning',
-          title: 'Acesso à internet e DNS',
-          detail: internetOk
-              ? 'A resolução DNS está funcionando.'
-              : 'Nenhum endereço foi retornado pela consulta DNS.',
-          action: internetOk
-              ? 'Nenhuma ação necessária.'
-              : 'Revise o DNS e a conexão com a internet.',
+          status: 'ok',
+          title: 'Resolução do servidor',
+          detail: 'O servidor usa endereço IP e não depende de resolução DNS.',
+          action: 'Nenhuma ação necessária.',
         ));
-      } catch (error) {
-        results.add(_diagnosticResult(
-          status: 'warning',
-          title: 'Acesso à internet e DNS',
-          detail: 'A consulta DNS falhou ou expirou: $error',
-          action: 'Confira a internet, DNS, proxy e políticas da rede.',
-        ));
+      } else {
+        try {
+          final addresses = await InternetAddress.lookup(serverHost)
+              .timeout(const Duration(seconds: 4));
+          final dnsOk = addresses.isNotEmpty;
+          results.add(_diagnosticResult(
+            status: dnsOk ? 'ok' : 'warning',
+            title: 'Resolução do servidor',
+            detail: dnsOk
+                ? 'O nome do servidor Saurus foi resolvido corretamente.'
+                : 'Nenhum endereço foi retornado para o servidor Saurus.',
+            action: dnsOk
+                ? 'Nenhuma ação necessária.'
+                : 'Revise o DNS e a conexão com a internet.',
+          ));
+        } catch (error) {
+          results.add(_diagnosticResult(
+            status: 'warning',
+            title: 'Resolução do servidor',
+            detail: 'A consulta DNS do servidor falhou ou expirou: $error',
+            action: 'Confira a internet, DNS, proxy e políticas da rede.',
+          ));
+        }
       }
 
       final readyForIncoming = serviceOk && idOk && serverReady;
@@ -687,7 +697,7 @@ SAURUS_WIDGETS = r'''  // SAURUS_UX_REFRESH_3_1
         status: 'ok',
         title: 'Versões do aplicativo',
         detail:
-            'Saurus Remote $detectedVersion · Motor RustDesk base 1.4.9.',
+            'Saurus Remote $detectedVersion · Edição corporativa Saurus.',
         action: 'Informe estas versões ao suporte quando necessário.',
       ));
     } catch (error) {

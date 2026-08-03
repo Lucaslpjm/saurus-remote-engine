@@ -344,21 +344,12 @@ function Write-DefaultsAndMigrate([string]$ConfigRoot) {
 }
 
 function Get-ConfigRoots {
+    # SAURUS_REMOTE_SCOPED_CONFIG_ROOTS_V1
+    # O instalador configura somente a identidade que executa a UI elevada e a conta
+    # do serviço. Não cria nem altera arquivos dentro de perfis de outros usuários.
     $roots = New-Object System.Collections.Generic.List[string]
     $roots.Add((Join-Path $env:APPDATA "SaurusRemote\config"))
     $roots.Add((Join-Path $env:WINDIR "ServiceProfiles\LocalService\AppData\Roaming\SaurusRemote\config"))
-    $roots.Add((Join-Path $env:WINDIR "System32\config\systemprofile\AppData\Roaming\SaurusRemote\config"))
-    $roots.Add((Join-Path $env:SystemDrive "Users\Default\AppData\Roaming\SaurusRemote\config"))
-
-    $usersRoot = Join-Path $env:SystemDrive "Users"
-    if (Test-Path -LiteralPath $usersRoot -PathType Container) {
-        foreach ($profile in Get-ChildItem -LiteralPath $usersRoot -Directory -ErrorAction SilentlyContinue) {
-            $candidate = Join-Path $profile.FullName "AppData\Roaming\SaurusRemote\config"
-            if (Test-Path -LiteralPath (Split-Path $candidate -Parent) -PathType Container) {
-                $roots.Add($candidate)
-            }
-        }
-    }
     return $roots | Select-Object -Unique
 }
 
@@ -378,11 +369,11 @@ function Set-FirewallRule {
         -Direction Inbound `
         -Action Allow `
         -Program $Exe `
-        -Profile Any `
+        -Profile Domain,Private `
         -Enabled True `
         -ErrorAction Stop | Out-Null
 
-    Log "Regra de firewall configurada."
+    Log "Regra de firewall configurada somente para redes de Dominio e Privadas."
 }
 
 try {

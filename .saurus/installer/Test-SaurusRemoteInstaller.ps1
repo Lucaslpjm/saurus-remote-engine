@@ -1,13 +1,18 @@
 # SAURUS_REMOTE_INSTALLER_PREFLIGHT_V3
 [CmdletBinding()]
 param(
-    [string]$InstallerScript = (Join-Path $PSScriptRoot "SaurusRemote.iss"),
-    [string]$ProductVersion = "1.4.9-saurus.3.2.3.3",
+    [string]$InstallerScript = "",
+    [string]$ProductVersion = "1.4.9-saurus.3.2.3.5",
+    [string]$NumericVersion = "1.4.9.5",
     [switch]$StaticOnly
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
+
+if ([string]::IsNullOrWhiteSpace($InstallerScript)) {
+    $InstallerScript = Join-Path $PSScriptRoot "SaurusRemote.iss"
+}
 
 $productionTest = Join-Path $PSScriptRoot "Test-SaurusProductionRelease.ps1"
 if (-not (Test-Path -LiteralPath $productionTest -PathType Leaf)) {
@@ -44,6 +49,9 @@ if (-not (Test-Path -LiteralPath $InstallerScript -PathType Leaf)) {
 if ($ProductVersion -notmatch '^1\.4\.9-saurus\.[A-Za-z0-9._-]+$') {
     throw "ProductVersion invalida para o preflight: $ProductVersion"
 }
+if ($NumericVersion -notmatch '^1\.4\.9\.(?:0|[1-9][0-9]{0,4})$') {
+    throw "NumericVersion invalida para o preflight: $NumericVersion"
+}
 
 $content = [IO.File]::ReadAllText($InstallerScript).Replace("`r`n", "`n").Replace("`r", "`n")
 Assert-ExactlyOne $content '(?m)^[ \t]*AppId[ \t]*=[^\n]*$' 'Diretiva AppId'
@@ -60,19 +68,15 @@ foreach ($directive in @('VersionInfoVersion', 'VersionInfoProductVersion')) {
     Assert-ExactlyOne $content $pattern $directive
     $valuePattern = "(?m)^[ \t]*" + [Regex]::Escape($directive) + "[ \t]*=[ \t]*([^\n]+)$"
     $value = [Regex]::Match($content, $valuePattern).Groups[1].Value.Trim()
-    if ($value -notmatch '^\d+(\.\d+){0,3}$') {
-        throw "${directive} deve conter no maximo quatro grupos numericos. Valor recebido: $value"
-    }
-    foreach ($part in $value.Split('.')) {
-        if ([int64]$part -gt 65535) {
-            throw "${directive} possui componente maior que 65535: $value"
-        }
+    if ($value -ne '{#NumericVersion}') {
+        throw "${directive} deve usar a versao numerica validada: $value"
     }
 }
 
 Assert-ExactlyOne $content '(?m)^[ \t]*VersionInfoProductTextVersion[ \t]*=[ \t]*\{#ProductVersion\}[ \t]*$' 'VersionInfoProductTextVersion'
 Assert-ExactlyOne $content '(?m)^\[Setup\][ \t]*$' 'Secao Setup'
 Assert-ExactlyOne $content '(?m)^\[Files\][ \t]*$' 'Secao Files'
+Assert-ExactlyOne $content '(?m)^\[Icons\][ \t]*$' 'Secao Icons'
 Assert-ExactlyOne $content '(?m)^\[Run\][ \t]*$' 'Secao Run'
 Assert-ExactlyOne $content '(?m)^\[Code\][ \t]*$' 'Secao Code'
 
@@ -81,10 +85,16 @@ foreach ($required in @(
     '#ifndef OutputDir',
     '#ifndef InstallerRoot',
     '#ifndef BrandingRoot',
+    '#ifndef NumericVersion',
     'PrivilegesRequired=admin',
+    'AppPublisherURL=https://github.com/Lucaslpjm/saurus-remote-engine',
+    'AppSupportURL=https://github.com/Lucaslpjm/saurus-remote-engine/issues',
     'ArchitecturesAllowed=x64compatible',
     'ArchitecturesInstallIn64BitMode=x64compatible',
     'OutputBaseFilename=SaurusRemote-{#ProductVersion}-Setup',
+    'Name: "{autoprograms}\Saurus Remote"; Filename: "{app}\{#AppExeName}"; WorkingDir: "{app}"',
+    'Name: "{autodesktop}\Saurus Remote"; Filename: "{app}\{#AppExeName}"; WorkingDir: "{app}"',
+    'Flags: nowait postinstall skipifsilent runascurrentuser',
     'Configure-SaurusRemote.ps1',
     'Run-SaurusRemotePostInstall.ps1',
     'Uninstall-SaurusRemote.ps1',
@@ -95,6 +105,9 @@ foreach ($required in @(
     if (-not $content.Contains($required)) {
         throw "Contrato obrigatorio ausente no instalador: $required"
     }
+}
+if ($content.Contains('runasoriginaluser')) {
+    throw "A abertura pos-instalacao ainda remove a elevacao administrativa."
 }
 
 Write-Host "[OK] Validacao estatica do SaurusRemote.iss concluida." -ForegroundColor Green
@@ -137,6 +150,7 @@ try {
             "/DSourceRoot=$payload" `
             "/DOutputDir=$output" `
             "/DProductVersion=$ProductVersion" `
+            "/DNumericVersion=$NumericVersion" `
             "/DInstallerRoot=$installerRoot" `
             "/DBrandingRoot=$brandingRoot" `
             $InstallerScript 2>&1

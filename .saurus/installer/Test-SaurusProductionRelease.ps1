@@ -104,24 +104,38 @@ foreach ($required in @(
 }
 
 $manifestText = [IO.File]::ReadAllText($appManifest)
-if (-not $manifestText.Contains('level="asInvoker"')) {
-    throw "O executavel principal nao esta configurado como asInvoker."
+if (-not $manifestText.Contains('level="requireAdministrator"')) {
+    throw "O executavel principal nao exige elevacao administrativa."
 }
-if ($manifestText.Contains('level="requireAdministrator"')) {
-    throw "O executavel principal ainda exige elevacao e pode falhar com codigo 740."
+if ($manifestText.Contains('level="asInvoker"')) {
+    throw "O executavel principal ainda permite execucao sem elevacao."
 }
 $manifestToolText = [IO.File]::ReadAllText($manifestTool)
-if (-not $manifestToolText.Contains("SAURUS_REMOTE_AS_INVOKER_MANIFEST_V1")) {
-    throw "Aplicador do manifesto asInvoker ausente."
+if (-not $manifestToolText.Contains("SAURUS_REMOTE_ALWAYS_ADMIN_MANIFEST_V1")) {
+    throw "Aplicador do manifesto requireAdministrator ausente."
+}
+if (-not $manifestToolText.Contains("SAURUS_REMOTE_VERIFY_EMBEDDED_MANIFEST_V1")) {
+    throw "A verificacao do manifesto incorporado no executavel final esta ausente."
 }
 foreach ($metadataPath in @($workflow, $localBuild)) {
     $metadataText = [IO.File]::ReadAllText($metadataPath)
-    if (-not $metadataText.Contains('requiresAdministrator = $false')) {
-        throw "Metadado do executavel ainda informa elevacao obrigatoria: $metadataPath"
+    if (-not $metadataText.Contains('requiresAdministrator = $true')) {
+        throw "Metadado do executavel nao informa elevacao obrigatoria: $metadataPath"
     }
-    if ($metadataText.Contains('requiresAdministrator = $true')) {
-        throw "Metadado contraditorio de elevacao encontrado: $metadataPath"
+    if ($metadataText.Contains('requiresAdministrator = $false')) {
+        throw "Metadado contraditorio sem elevacao encontrado: $metadataPath"
     }
+}
+
+if (-not $configureText.Contains("SAURUS_REMOTE_SCOPED_CONFIG_ROOTS_V1")) {
+    throw "O instalador ainda nao limita a escrita aos perfis gerenciados."
+}
+if ($configureText.Contains("-Profile Any") -or -not $configureText.Contains("-Profile Domain,Private")) {
+    throw "A regra de firewall nao esta limitada a redes de Dominio e Privadas."
+}
+$workflowText = [IO.File]::ReadAllText($workflow)
+if (-not $workflowText.Contains("verify /pa /all")) {
+    throw "O workflow nao valida as assinaturas Authenticode depois da assinatura."
 }
 
 $uninstallText = [IO.File]::ReadAllText($uninstall)
@@ -136,7 +150,7 @@ $issText = [IO.File]::ReadAllText($iss).Replace("`r`n", "`n").Replace("`r", "`n"
 foreach ($required in @(
     "Run-SaurusRemotePostInstall.ps1",
     "-TimeoutSeconds 120",
-    "Flags: nowait postinstall skipifsilent runasoriginaluser",
+    "Flags: nowait postinstall skipifsilent runascurrentuser",
     "PrivilegesRequired=admin",
     "ArchitecturesAllowed=x64compatible"
 )) {
@@ -147,9 +161,20 @@ foreach ($required in @(
 if ([regex]::Matches($issText, '(?m)^Filename: "\{app\}\\\{#AppExeName\}"').Count -ne 1) {
     throw "A abertura do Saurus Remote deve existir exatamente uma vez na secao [Run]."
 }
+if ($issText.Contains("runasoriginaluser")) {
+    throw "A abertura final ainda reduz os privilegios para o usuario original."
+}
+foreach ($shortcut in @(
+    'Name: "{autoprograms}\Saurus Remote"; Filename: "{app}\{#AppExeName}"; WorkingDir: "{app}"',
+    'Name: "{autodesktop}\Saurus Remote"; Filename: "{app}\{#AppExeName}"; WorkingDir: "{app}"'
+)) {
+    if (-not $issText.Contains($shortcut)) {
+        throw "Atalho administrativo esperado nao encontrado: $shortcut"
+    }
+}
 
 Write-Host "[OK] Interface protegida contra corrupcao CP850/UTF-8."
-Write-Host "[OK] Executavel principal usa asInvoker; somente o setup exige administrador."
+Write-Host "[OK] Executavel principal e atalhos exigem administrador."
 Write-Host "[OK] Servidor e chave Saurus sao reforcados no inicio e nos perfis instalados."
 Write-Host "[OK] Servico precisa permanecer estavel antes da conclusao do instalador."
-Write-Host "[OK] Abertura final ocorre no usuario original."
+Write-Host "[OK] Abertura final preserva a elevacao administrativa do setup."
