@@ -1,4 +1,4 @@
-## 1.4.9-saurus.3.2.3.5
+## 1.4.9-saurus.3.2.3.6
 
 - Isola o manifesto `requireAdministrator` em `SaurusRemoteLauncher.exe`, evitando que a elevacao bloqueie os modos `--service`, `--server` e `--tray` do motor.
 - Garante que os atalhos da area de trabalho, menu Iniciar e abertura pos-instalacao usem o launcher com UAC.

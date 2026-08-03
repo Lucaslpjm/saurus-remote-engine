@@ -6,7 +6,7 @@ on:
       build_label:
         description: "Identificador da compilacao Saurus"
         required: true
-        default: "saurus.3.2.3.5"
+        default: "saurus.3.2.3.6"
         type: string
       include_remote_printer:
         description: "Incluir driver de impressao remota upstream (desativado por padrao para maximizar coexistencia)"
